@@ -12,6 +12,24 @@ async function loadLastCaptured() {
   if (stored.lastCapturedJob) fillForm(stored.lastCapturedJob);
 }
 
+async function getActiveTab() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id) throw new Error("No active tab");
+  return tab;
+}
+
+async function loadInitialCapture() {
+  const tab = await getActiveTab();
+  const isLinkedInJob = Boolean(tab.url?.includes("linkedin.com/jobs"));
+
+  if (isLinkedInJob) {
+    await captureCurrentPage();
+    return;
+  }
+
+  await loadLastCaptured();
+}
+
 function fillForm(job: CapturedJob) {
   currentJob = job;
   ($<HTMLInputElement>("companyName")).value = job.companyName || "";
@@ -28,9 +46,8 @@ function fillForm(job: CapturedJob) {
 
 async function captureCurrentPage() {
   status.textContent = "Capturing current page...";
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab?.id) throw new Error("No active tab");
-  const response = await chrome.tabs.sendMessage(tab.id, { type: "JOBSIGNAL_EXTRACT_JOB" });
+  const tab = await getActiveTab();
+  const response = await chrome.tabs.sendMessage(tab.id!, { type: "JOBSIGNAL_EXTRACT_JOB" });
   if (!response?.ok) throw new Error(response?.error || "Extraction failed");
   fillForm(response.captured);
   await chrome.storage.local.set({ lastCapturedJob: response.captured });
@@ -69,4 +86,7 @@ async function confirmApplied() {
 $("capture").addEventListener("click", () => captureCurrentPage().catch((error) => (status.textContent = error.message)));
 $("markApplied").addEventListener("click", () => confirmApplied().catch((error) => (status.textContent = error.message)));
 
-loadLastCaptured().catch(() => undefined);
+loadInitialCapture().catch((error) => {
+  status.textContent = error.message || "Could not capture current page. Try the Capture button.";
+  loadLastCaptured().catch(() => undefined);
+});
