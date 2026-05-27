@@ -11,6 +11,10 @@ export type CapturedJob = {
   salaryListed?: boolean;
   rawDescription?: string;
   applicationMethod?: string;
+  applicationSourceType?: "unknown" | "direct" | "third_party_recruiter" | "staffing_agency" | "job_board";
+  recruiterName?: string;
+  recruiterCompany?: string;
+  recruiterNotes?: string;
   resumeVersionId?: string;
   resumeLabel?: string;
   notes?: string;
