@@ -24,6 +24,7 @@ export async function POST(request: Request) {
   const appliedAt = input.appliedAt ? new Date(input.appliedAt) : new Date();
   const salaryText = input.salaryText || extraction.salaryText || null;
   const salaryListed = Boolean(input.salaryListed || extraction.salaryListed || salaryText);
+  const applicationSourceType = input.applicationSourceType || "unknown";
 
   const result = await prisma.$transaction(async (tx) => {
     const user = await tx.user.upsert({
@@ -35,6 +36,13 @@ export async function POST(request: Request) {
     const resumeVersion = input.resumeVersionId
       ? await tx.resumeVersion.findFirst({ where: { id: input.resumeVersionId, userId: user.id } })
       : null;
+
+    const recruiterContact = await findOrCreateRecruiterContact(tx, {
+      userId: user.id,
+      recruiterName: input.recruiterName,
+      recruiterCompany: input.recruiterCompany,
+      recruiterNotes: input.recruiterNotes,
+    });
 
     const existingJobPosting = await findExistingJobPosting(tx, {
       userId: user.id,
@@ -110,8 +118,14 @@ export async function POST(request: Request) {
             status: existingApplication.status === "rejected" ? existingApplication.status : "applied",
             source: input.source,
             applicationMethod: input.applicationMethod || "linkedin_easy_apply",
+            applicationSourceType,
+            recruiterContactId: recruiterContact?.id,
+            recruiterName: input.recruiterName || existingApplication.recruiterName,
+            recruiterCompany: input.recruiterCompany || existingApplication.recruiterCompany,
+            recruiterNotes: input.recruiterNotes || existingApplication.recruiterNotes,
             appliedAt: existingApplication.appliedAt || appliedAt,
             resumeVersionId: resumeVersion?.id,
+            resumeLabel: input.resumeLabel || existingApplication.resumeLabel,
             notes: input.notes || existingApplication.notes,
           },
         })
@@ -122,8 +136,14 @@ export async function POST(request: Request) {
             status: "applied",
             source: input.source,
             applicationMethod: input.applicationMethod || "linkedin_easy_apply",
+            applicationSourceType,
+            recruiterContactId: recruiterContact?.id,
+            recruiterName: input.recruiterName,
+            recruiterCompany: input.recruiterCompany,
+            recruiterNotes: input.recruiterNotes,
             appliedAt,
             resumeVersionId: resumeVersion?.id,
+            resumeLabel: input.resumeLabel,
             notes: input.notes,
           },
         });
@@ -141,6 +161,10 @@ export async function POST(request: Request) {
           jobUrl: input.jobUrl,
           salaryListed,
           salaryText,
+          applicationSourceType,
+          recruiterName: input.recruiterName,
+          recruiterCompany: input.recruiterCompany,
+          resumeLabel: input.resumeLabel,
         }),
         occurredAt: appliedAt,
       },
@@ -177,6 +201,37 @@ export async function POST(request: Request) {
     applicationUrl: `/applications/${result.application.id}`,
     extraction,
     analysis,
+  });
+}
+
+async function findOrCreateRecruiterContact(
+  tx: Prisma.TransactionClient,
+  input: {
+    userId: string;
+    recruiterName?: string;
+    recruiterCompany?: string;
+    recruiterNotes?: string;
+  },
+) {
+  if (!input.recruiterName && !input.recruiterCompany) return null;
+
+  const existing = await tx.recruiterContact.findFirst({
+    where: {
+      userId: input.userId,
+      name: input.recruiterName || undefined,
+      firmName: input.recruiterCompany || undefined,
+    },
+  });
+
+  if (existing) return existing;
+
+  return tx.recruiterContact.create({
+    data: {
+      userId: input.userId,
+      name: input.recruiterName,
+      firmName: input.recruiterCompany,
+      notes: input.recruiterNotes,
+    },
   });
 }
 
