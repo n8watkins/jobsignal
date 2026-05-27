@@ -10,7 +10,7 @@
       <header>
         <p class="eyebrow">LinkedIn capture</p>
         <h1>Mark Applied</h1>
-        <p>Review the job captured from this LinkedIn page before sending it to JobSignal.</p>
+        <p>Review the captured job, then tag whether it is direct or recruiter-led.</p>
       </header>
 
       <section id="status" class="status">Press Capture or use Ctrl+Shift+A on a LinkedIn job page.</section>
@@ -31,6 +31,22 @@
           <strong id="jdStatus">Not captured</strong>
         </div>
       </div>
+
+      <label>Application source
+        <select id="applicationSourceType">
+          <option value="unknown">Unsure / review later</option>
+          <option value="direct">Direct from company</option>
+          <option value="third_party_recruiter">Third-party recruiter</option>
+          <option value="staffing_agency">Staffing agency</option>
+          <option value="job_board">Job board / listing only</option>
+        </select>
+      </label>
+
+      <div class="grid-2">
+        <label>Recruiter name<input id="recruiterName" placeholder="Optional" /></label>
+        <label>Recruiter firm<input id="recruiterCompany" placeholder="Optional" /></label>
+      </div>
+      <label>Recruiter notes<textarea id="recruiterNotes" placeholder="Why this feels direct/recruiter-led, trust level, context..."></textarea></label>
 
       <label>Resume used<input id="resumeLabel" placeholder="e.g. n8_Full_Stack_Resume.pdf" /></label>
       <label>Notes<textarea id="notes" placeholder="Applied through LinkedIn Easy Apply"></textarea></label>
