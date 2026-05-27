@@ -12,16 +12,35 @@ chrome.commands.onCommand.addListener(async (command) => {
     return;
   }
 
-  await chrome.storage.local.set({ lastCapturedJob: response.captured });
-  // Store only. Popup lets user review before confirming.
+  await chrome.storage.local.set({ lastCapturedJob: response.captured, captureReason: "shortcut" });
   chrome.action.openPopup?.();
 });
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.type === "JOBSIGNAL_MARK_APPLIED") {
     markApplied(message.payload as CapturedJob)
-      .then((data) => sendResponse({ ok: true, data }))
+      .then(async (data) => {
+        await chrome.storage.local.remove(["pendingSubmitCapture", "captureReason"]);
+        sendResponse({ ok: true, data });
+      })
       .catch((error) => sendResponse({ ok: false, error: error instanceof Error ? error.message : "Unknown API error" }));
+    return true;
+  }
+
+  if (message?.type === "JOBSIGNAL_APPLICATION_SUBMITTED_DETECTED") {
+    const payload = message.payload as CapturedJob;
+    chrome.storage.local.set({
+      lastCapturedJob: payload,
+      pendingSubmitCapture: payload,
+      captureReason: "submit_detected",
+    });
+
+    if (sender.tab?.id) {
+      chrome.action.setBadgeText({ text: "NEW", tabId: sender.tab.id });
+      chrome.action.setBadgeBackgroundColor({ color: "#6366f1", tabId: sender.tab.id });
+    }
+
+    sendResponse({ ok: true });
     return true;
   }
 });
