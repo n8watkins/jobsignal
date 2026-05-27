@@ -1,0 +1,26 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>JobSignal</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>JobSignal</h1>
+        <p>Mark current job as applied.</p>
+      </header>
+      <section id="status" class="status">Ready.</section>
+      <label>Company<input id="companyName" placeholder="Company" /></label>
+      <label>Role<input id="roleTitle" placeholder="Role" /></label>
+      <label>Location<input id="location" placeholder="Location" /></label>
+      <label>Resume<select id="resumeVersionId"><option value="resume_frontend_v3">Frontend Resume v3</option><option value="resume_fullstack_v2">Full Stack Resume v2</option></select></label>
+      <label>Notes<textarea id="notes" placeholder="Applied through LinkedIn Easy Apply"></textarea></label>
+      <button id="capture">Capture Current Page</button>
+      <button id="markApplied">Confirm Applied</button>
+      <pre id="debug"></pre>
+    </main>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

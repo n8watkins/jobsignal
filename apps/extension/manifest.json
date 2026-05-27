@@ -1,0 +1,45 @@
+{
+  "manifest_version": 3,
+  "name": "JobSignal Capture",
+  "version": "0.1.0",
+  "description": "Mark jobs as applied and send captured job details to JobSignal.",
+  "permissions": ["activeTab", "scripting", "storage", "commands"],
+  "host_permissions": [
+    "https://www.linkedin.com/jobs/*",
+    "https://*.greenhouse.io/*",
+    "https://jobs.lever.co/*",
+    "https://*.ashbyhq.com/*",
+    "https://*.myworkdayjobs.com/*",
+    "http://localhost:3000/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.linkedin.com/jobs/*",
+        "https://*.greenhouse.io/*",
+        "https://jobs.lever.co/*",
+        "https://*.ashbyhq.com/*",
+        "https://*.myworkdayjobs.com/*"
+      ],
+      "js": ["contentScript.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "JobSignal",
+    "default_popup": "popup.html"
+  },
+  "commands": {
+    "mark-applied": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+A",
+        "mac": "Command+Shift+A"
+      },
+      "description": "Capture current job and mark applied"
+    }
+  }
+}
