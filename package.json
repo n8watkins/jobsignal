@@ -5,6 +5,7 @@
   "description": "JobSignal V1 personal job-search command center starter repo.",
   "packageManager": "pnpm@9.12.0",
   "scripts": {
+    "setup:env": "cp .env.example apps/web/.env",
     "dev": "pnpm --filter @jobsignal/web dev",
     "build": "pnpm --filter @jobsignal/web build",
     "lint": "pnpm --filter @jobsignal/web lint",
