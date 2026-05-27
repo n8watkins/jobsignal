@@ -12,5 +12,6 @@ export type CapturedJob = {
   rawDescription?: string;
   applicationMethod?: string;
   resumeVersionId?: string;
+  resumeLabel?: string;
   notes?: string;
 };
