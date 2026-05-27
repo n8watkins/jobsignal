@@ -8,8 +8,10 @@ const debug = $("debug");
 const openApplication = $<HTMLAnchorElement>("openApplication");
 
 async function loadLastCaptured() {
-  const stored = await chrome.storage.local.get(["lastCapturedJob"]);
-  if (stored.lastCapturedJob) fillForm(stored.lastCapturedJob);
+  const stored = await chrome.storage.local.get(["lastCapturedJob", "captureReason"]);
+  if (stored.lastCapturedJob) {
+    fillForm(stored.lastCapturedJob, stored.captureReason);
+  }
 }
 
 async function getActiveTab() {
@@ -30,17 +32,30 @@ async function loadInitialCapture() {
   await loadLastCaptured();
 }
 
-function fillForm(job: CapturedJob) {
+function fillForm(job: CapturedJob, captureReason?: string) {
   currentJob = job;
   ($<HTMLInputElement>("companyName")).value = job.companyName || "";
   ($<HTMLInputElement>("roleTitle")).value = job.roleTitle || "";
   ($<HTMLInputElement>("location")).value = job.location || "";
+  ($<HTMLInputElement>("resumeLabel")).value = job.resumeLabel || "";
+  ($<HTMLSelectElement>("applicationSourceType")).value = job.applicationSourceType || "unknown";
+  ($<HTMLInputElement>("recruiterName")).value = job.recruiterName || "";
+  ($<HTMLInputElement>("recruiterCompany")).value = job.recruiterCompany || "";
+  ($<HTMLTextAreaElement>("recruiterNotes")).value = job.recruiterNotes || "";
   $("payStatus").textContent = job.salaryListed ? job.salaryText || "Listed" : "No pay found";
   $("jdStatus").textContent = job.rawDescription ? `${Math.round(job.rawDescription.length / 100) / 10}k chars` : "Missing";
   debug.textContent = JSON.stringify(job, null, 2);
-  status.textContent = job.source === "linkedin"
-    ? "Captured LinkedIn job. Review before confirming."
-    : "Captured current page. Review carefully before confirming.";
+
+  if (captureReason === "submit_detected") {
+    status.textContent = "LinkedIn submit detected. Review the source tag, then confirm applied.";
+  } else if (captureReason === "apply_started") {
+    status.textContent = "Easy Apply started. Draft captured — confirm only after submitting.";
+  } else {
+    status.textContent = job.source === "linkedin"
+      ? "Captured LinkedIn job. Review before confirming."
+      : "Captured current page. Review carefully before confirming.";
+  }
+
   openApplication.classList.add("hidden");
 }
 
@@ -50,7 +65,7 @@ async function captureCurrentPage() {
   const response = await chrome.tabs.sendMessage(tab.id!, { type: "JOBSIGNAL_EXTRACT_JOB" });
   if (!response?.ok) throw new Error(response?.error || "Extraction failed");
   fillForm(response.captured);
-  await chrome.storage.local.set({ lastCapturedJob: response.captured });
+  await chrome.storage.local.set({ lastCapturedJob: response.captured, captureReason: "manual_capture" });
 }
 
 async function confirmApplied() {
@@ -60,7 +75,11 @@ async function confirmApplied() {
     companyName: ($<HTMLInputElement>("companyName")).value,
     roleTitle: ($<HTMLInputElement>("roleTitle")).value,
     location: ($<HTMLInputElement>("location")).value,
-    resumeVersionId: ($<HTMLSelectElement>("resumeVersionId")).value || undefined,
+    applicationSourceType: ($<HTMLSelectElement>("applicationSourceType")).value as CapturedJob["applicationSourceType"],
+    recruiterName: ($<HTMLInputElement>("recruiterName")).value || undefined,
+    recruiterCompany: ($<HTMLInputElement>("recruiterCompany")).value || undefined,
+    recruiterNotes: ($<HTMLTextAreaElement>("recruiterNotes")).value || undefined,
+    resumeLabel: ($<HTMLInputElement>("resumeLabel")).value || undefined,
     notes: ($<HTMLTextAreaElement>("notes")).value,
   };
 
