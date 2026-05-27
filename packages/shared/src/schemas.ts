@@ -5,6 +5,8 @@ export const ApplicationStatusSchema = z.enum(APPLICATION_STATUSES);
 export const EmailClassificationSchema = z.enum(EMAIL_CLASSIFICATIONS);
 export const SourceSchema = z.enum(SOURCES);
 
+export const ApplicationSourceTypeSchema = z.enum(["unknown", "direct", "third_party_recruiter", "staffing_agency", "job_board"]);
+
 export const CapturedJobSchema = z.object({
   source: SourceSchema.default("generic"),
   sourceJobId: z.string().optional(),
@@ -18,6 +20,10 @@ export const CapturedJobSchema = z.object({
   salaryListed: z.boolean().default(false),
   rawDescription: z.string().optional(),
   applicationMethod: z.string().default("manual"),
+  applicationSourceType: ApplicationSourceTypeSchema.default("unknown"),
+  recruiterName: z.string().optional(),
+  recruiterCompany: z.string().optional(),
+  recruiterNotes: z.string().optional(),
   resumeVersionId: z.string().optional(),
   resumeLabel: z.string().optional(),
   notes: z.string().optional(),
