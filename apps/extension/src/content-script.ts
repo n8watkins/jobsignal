@@ -1,5 +1,6 @@
 import { extractCurrentJob } from "./extractors";
 
+const START_APPLY_TEXT_PATTERN = /^(easy apply|apply|apply now)$/i;
 const SUBMIT_TEXT_PATTERN = /^(submit application|submit|send application)$/i;
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -18,23 +19,34 @@ document.addEventListener(
   "click",
   (event) => {
     const target = event.target instanceof Element ? event.target : null;
-    const button = target?.closest("button");
+    const button = target?.closest("button, a[role='button']");
     const buttonText = button?.textContent?.replace(/\s+/g, " ").trim();
 
-    if (!button || !buttonText || !SUBMIT_TEXT_PATTERN.test(buttonText)) return;
+    if (!button || !buttonText) return;
 
-    window.setTimeout(() => {
-      try {
-        const captured = extractCurrentJob();
-        chrome.runtime.sendMessage({ type: "JOBSIGNAL_APPLICATION_SUBMITTED_DETECTED", payload: captured });
-        showJobSignalToast("Application submit detected. JobSignal captured this job — click the extension to confirm.");
-      } catch {
-        showJobSignalToast("Application submit detected, but JobSignal could not capture the job. Click the extension to capture manually.");
-      }
-    }, 700);
+    if (START_APPLY_TEXT_PATTERN.test(buttonText)) {
+      captureApplicationSignal("JOBSIGNAL_APPLICATION_STARTED_DETECTED", "Application started. JobSignal saved a draft snapshot for this LinkedIn job.", 250);
+      return;
+    }
+
+    if (SUBMIT_TEXT_PATTERN.test(buttonText)) {
+      captureApplicationSignal("JOBSIGNAL_APPLICATION_SUBMITTED_DETECTED", "Application submit detected. JobSignal captured this job — click the extension to confirm.", 700);
+    }
   },
   true,
 );
+
+function captureApplicationSignal(messageType: string, toastMessage: string, delayMs: number) {
+  window.setTimeout(() => {
+    try {
+      const captured = extractCurrentJob();
+      chrome.runtime.sendMessage({ type: messageType, payload: captured });
+      showJobSignalToast(toastMessage);
+    } catch {
+      showJobSignalToast("JobSignal detected the application flow, but could not capture the job. Click the extension to capture manually.");
+    }
+  }, delayMs);
+}
 
 function showJobSignalToast(message: string) {
   const existing = document.getElementById("jobsignal-submit-toast");
