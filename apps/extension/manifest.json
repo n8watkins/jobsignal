@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "JobSignal Capture",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Mark jobs as applied and send captured job details to JobSignal.",
   "permissions": ["activeTab", "scripting", "storage", "commands"],
   "host_permissions": [
