@@ -16,6 +16,7 @@ model User {
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
   resumeVersions    ResumeVersion[]
+  recruiterContacts RecruiterContact[]
   jobPostings       JobPosting[]
   applications      Application[]
   applicationEvents ApplicationEvent[]
@@ -35,6 +36,24 @@ model ResumeVersion {
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   applications Application[]
+}
+
+model RecruiterContact {
+  id           String        @id @default(cuid())
+  userId       String
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String?
+  firmName     String?
+  email        String?
+  linkedinUrl  String?
+  notes        String?
+  trustLevel   Int?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  applications Application[]
+
+  @@index([userId, firmName])
+  @@index([userId, email])
 }
 
 model JobPosting {
@@ -75,32 +94,41 @@ model JobPosting {
 }
 
 model Application {
-  id                String             @id @default(cuid())
-  userId            String
-  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  jobPostingId      String             @unique
-  jobPosting        JobPosting         @relation(fields: [jobPostingId], references: [id], onDelete: Cascade)
-  status            String             @default("applied")
-  source            String?
-  applicationMethod String?
-  appliedAt         DateTime?
-  resumeVersionId   String?
-  resumeVersion     ResumeVersion?     @relation(fields: [resumeVersionId], references: [id])
-  contactName       String?
-  contactEmail      String?
-  lastContactAt     DateTime?
-  nextAction        String?
-  actionNeeded      Boolean            @default(false)
-  interestLevel     Int?
-  notes             String?
-  archivedAt        DateTime?
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  events            ApplicationEvent[]
-  emailEvents       EmailEvent[]
-  companyResearch   CompanyResearch[]
+  id                    String             @id @default(cuid())
+  userId                String
+  user                  User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobPostingId          String             @unique
+  jobPosting            JobPosting         @relation(fields: [jobPostingId], references: [id], onDelete: Cascade)
+  status                String             @default("applied")
+  source                String?
+  applicationMethod     String?
+  applicationSourceType String             @default("unknown")
+  recruiterContactId    String?
+  recruiterContact      RecruiterContact?  @relation(fields: [recruiterContactId], references: [id], onDelete: SetNull)
+  recruiterName         String?
+  recruiterCompany      String?
+  recruiterNotes        String?
+  appliedAt             DateTime?
+  resumeVersionId       String?
+  resumeVersion         ResumeVersion?     @relation(fields: [resumeVersionId], references: [id])
+  resumeLabel           String?
+  contactName           String?
+  contactEmail          String?
+  lastContactAt         DateTime?
+  nextAction            String?
+  actionNeeded          Boolean            @default(false)
+  interestLevel         Int?
+  notes                 String?
+  archivedAt            DateTime?
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+  events                ApplicationEvent[]
+  emailEvents           EmailEvent[]
+  companyResearch       CompanyResearch[]
 
   @@index([userId, status])
+  @@index([userId, applicationSourceType])
+  @@index([userId, recruiterCompany])
 }
 
 model ApplicationEvent {
