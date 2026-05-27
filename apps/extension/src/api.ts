@@ -15,9 +15,21 @@ export async function markApplied(job: CapturedJob) {
     body: JSON.stringify({ ...job, appliedAt: new Date().toISOString() }),
   });
 
+  const text = await response.text();
+  const data = text ? safeJsonParse(text) : null;
+
   if (!response.ok) {
-    throw new Error(`JobSignal API error: ${response.status}`);
+    const detail = typeof data?.error === "string" ? data.error : data ? JSON.stringify(data.error || data) : text;
+    throw new Error(`JobSignal API error ${response.status}${detail ? `: ${detail}` : ""}`);
   }
 
-  return response.json();
+  return data;
+}
+
+function safeJsonParse(text: string) {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { raw: text };
+  }
 }
