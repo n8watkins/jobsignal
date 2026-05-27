@@ -19,6 +19,7 @@ export const CapturedJobSchema = z.object({
   rawDescription: z.string().optional(),
   applicationMethod: z.string().default("manual"),
   resumeVersionId: z.string().optional(),
+  resumeLabel: z.string().optional(),
   notes: z.string().optional(),
 });
 
