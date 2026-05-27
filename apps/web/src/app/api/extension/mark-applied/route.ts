@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { MarkAppliedRequestSchema } from "@jobsignal/shared";
 import { analyzeJobFit, extractJobDescription } from "@/lib/ai/analyze-job";
 import { prisma } from "@/lib/prisma";
@@ -179,10 +180,8 @@ export async function POST(request: Request) {
   });
 }
 
-type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
-
 async function findExistingJobPosting(
-  tx: Tx,
+  tx: Prisma.TransactionClient,
   input: {
     userId: string;
     source?: string;
