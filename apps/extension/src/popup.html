@@ -15,8 +15,10 @@
 
       <section id="status" class="status">Press Capture or use Ctrl+Shift+A on a LinkedIn job page.</section>
 
-      <label>Company<input id="companyName" placeholder="Company" /></label>
-      <label>Role<input id="roleTitle" placeholder="Role" /></label>
+      <div class="grid-2">
+        <label>Company<input id="companyName" placeholder="Company" /></label>
+        <label>Role<input id="roleTitle" placeholder="Role" /></label>
+      </div>
       <label>Location<input id="location" placeholder="Location" /></label>
 
       <div class="meta-grid">
@@ -30,7 +32,7 @@
         </div>
       </div>
 
-      <label>Resume<select id="resumeVersionId"><option value="">No resume selected</option><option value="resume_frontend_v3">Frontend Resume v3</option><option value="resume_fullstack_v2">Full Stack Resume v2</option></select></label>
+      <label>Resume used<input id="resumeLabel" placeholder="e.g. n8_Full_Stack_Resume.pdf" /></label>
       <label>Notes<textarea id="notes" placeholder="Applied through LinkedIn Easy Apply"></textarea></label>
 
       <button id="capture" class="secondary">Capture LinkedIn Page</button>
