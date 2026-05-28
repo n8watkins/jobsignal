@@ -1,19 +1,23 @@
 import { saveCandidateJob, scoreVisibleCandidateJobs } from "./candidateJobApi";
-import type { LinkedInJobCard } from "./candidateJobTypes";
+import type { LinkedInJobCard, ScoredLinkedInJobCard } from "./candidateJobTypes";
 import { extractLinkedInSidebarJobs } from "./linkedinJobList";
 import { attachScoresToLinkedInCards } from "./sidebarScoreOverlay";
 
 const globalKey = "__jobsignalLinkedInRadarStarted";
-const scoredJobCache = new Map<string, number>();
+const scoredJobCache = new Map<string, ScoredLinkedInJobCard>();
 let scanTimer: number | undefined;
+let lastPathname = location.pathname;
 
 export function startLinkedInJobRadar() {
+  if (!location.hostname.includes("linkedin.com")) return;
+  if (!location.pathname.includes("/jobs")) {
+    watchForLinkedInJobsNavigation();
+    return;
+  }
+
   const globalObject = window as typeof window & Record<string, unknown>;
   if (globalObject[globalKey]) return;
   globalObject[globalKey] = true;
-
-  if (!location.hostname.includes("linkedin.com")) return;
-  if (!location.pathname.includes("/jobs")) return;
 
   window.addEventListener("jobsignal:save-candidate-job", ((event: CustomEvent<LinkedInJobCard>) => {
     const job = event.detail;
@@ -24,7 +28,16 @@ export function startLinkedInJobRadar() {
 
   const observer = new MutationObserver(() => scheduleLinkedInSidebarScan());
   observer.observe(document.body, { childList: true, subtree: true });
+  watchForLinkedInJobsNavigation();
   scheduleLinkedInSidebarScan();
+}
+
+function watchForLinkedInJobsNavigation() {
+  window.setInterval(() => {
+    if (location.pathname === lastPathname) return;
+    lastPathname = location.pathname;
+    if (location.pathname.includes("/jobs")) scheduleLinkedInSidebarScan();
+  }, 1200);
 }
 
 function scheduleLinkedInSidebarScan() {
@@ -36,19 +49,31 @@ function scheduleLinkedInSidebarScan() {
 
 async function scanLinkedInSidebar() {
   const jobs = extractLinkedInSidebarJobs();
-  const unscoredJobs = jobs.filter((job) => {
-    const key = job.sourceJobId || job.elementKey;
-    return key && !scoredJobCache.has(key);
-  });
+  const cachedMatches: ScoredLinkedInJobCard[] = [];
+  const unscoredJobs: LinkedInJobCard[] = [];
 
+  for (const job of jobs) {
+    const key = getJobKey(job);
+    if (!key) continue;
+
+    const cached = scoredJobCache.get(key);
+    if (cached) cachedMatches.push(cached);
+    else unscoredJobs.push(job);
+  }
+
+  if (cachedMatches.length > 0) attachScoresToLinkedInCards(cachedMatches);
   if (unscoredJobs.length === 0) return;
 
   const scoredJobs = await scoreVisibleCandidateJobs(unscoredJobs);
   for (const job of scoredJobs) {
-    const key = job.sourceJobId || job.elementKey;
-    if (key) scoredJobCache.set(key, job.fitScore);
+    const key = getJobKey(job);
+    if (key) scoredJobCache.set(key, job);
   }
   attachScoresToLinkedInCards(scoredJobs);
+}
+
+function getJobKey(job: LinkedInJobCard) {
+  return job.sourceJobId || job.jobUrl || job.elementKey;
 }
 
 function showRadarToast(message: string) {
