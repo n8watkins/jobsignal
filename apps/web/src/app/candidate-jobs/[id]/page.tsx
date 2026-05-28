@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Badge, Card } from "@/components/ui";
 import { prisma } from "@/lib/prisma";
+import { AnalyzeCandidateJobButton } from "./analyze-button";
 import { CandidateJobActions } from "./candidate-job-actions";
 
 export const dynamic = "force-dynamic";
@@ -54,17 +55,22 @@ export default async function CandidateJobDetailPage({ params }: { params: Promi
               <ReasonList title="Required / detected" items={parseList(job.requiredTechnologies)} />
               <div className="mt-4"><ReasonList title="Emphasis areas" items={parseList(job.emphasisAreas)} /></div>
             </Card>
-            {analysis ? (
-              <Card className="p-5">
-                <h2 className="mb-4 font-semibold text-white">Latest Analysis</h2>
-                {analysis.summary ? <p className="text-sm text-slate-300">{analysis.summary}</p> : null}
-                {analysis.resumePositioning ? <p className="mt-3 text-sm text-slate-400">{analysis.resumePositioning}</p> : null}
-                <div className="mt-4 grid gap-4 md:grid-cols-2">
-                  <ReasonList title="Likely day-to-day" items={parseList(analysis.likelyDayToDay)} />
-                  <ReasonList title="Missing technologies" items={parseList(analysis.missingTechnologies)} danger />
+            <Card className="p-5">
+              <div className="mb-4 flex items-center justify-between gap-4">
+                <h2 className="font-semibold text-white">Analysis</h2>
+                <AnalyzeCandidateJobButton id={job.id} />
+              </div>
+              {analysis ? (
+                <div>
+                  {analysis.summary ? <p className="text-sm text-slate-300">{analysis.summary}</p> : null}
+                  {analysis.resumePositioning ? <p className="mt-3 text-sm text-slate-400">{analysis.resumePositioning}</p> : null}
+                  <div className="mt-4 grid gap-4 md:grid-cols-2">
+                    <ReasonList title="Likely day-to-day" items={parseList(analysis.likelyDayToDay)} />
+                    <ReasonList title="Missing technologies" items={parseList(analysis.missingTechnologies)} danger />
+                  </div>
                 </div>
-              </Card>
-            ) : null}
+              ) : <p className="text-sm text-slate-500">No analysis saved yet.</p>}
+            </Card>
             <Card className="p-5">
               <h2 className="mb-4 font-semibold text-white">Raw Description / Notes</h2>
               <pre className="max-h-[520px] overflow-auto whitespace-pre-wrap rounded-xl bg-black/30 p-4 text-sm leading-6 text-slate-300">{job.rawDescription || job.rawCardText || "No raw description captured yet."}</pre>
