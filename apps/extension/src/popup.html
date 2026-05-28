@@ -8,51 +8,55 @@
   <body>
     <main>
       <header>
-        <p class="eyebrow">LinkedIn capture</p>
-        <h1>Mark Applied</h1>
-        <p>Review the captured job, then tag whether it is direct or recruiter-led.</p>
+        <div>
+          <p class="eyebrow">JobSignal</p>
+          <h1>Confirm Applied</h1>
+        </div>
+        <div class="version">v0.1.4</div>
       </header>
 
-      <section id="status" class="status">Press Capture or use Ctrl+Shift+A on a LinkedIn job page.</section>
+      <section id="status" class="status">Capture LinkedIn, review, confirm.</section>
 
-      <div class="grid-2">
-        <label>Company<input id="companyName" placeholder="Company" /></label>
-        <label>Role<input id="roleTitle" placeholder="Role" /></label>
-      </div>
-      <label>Location<input id="location" placeholder="Location" /></label>
-
-      <div class="meta-grid">
-        <div>
-          <span class="meta-label">Pay</span>
-          <strong id="payStatus">Unknown</strong>
+      <section class="panel">
+        <div class="grid-2">
+          <label>Company<input id="companyName" placeholder="Company" /></label>
+          <label>Role<input id="roleTitle" placeholder="Role" /></label>
         </div>
-        <div>
-          <span class="meta-label">JD</span>
-          <strong id="jdStatus">Not captured</strong>
+        <div class="grid-3">
+          <label>Location<input id="location" placeholder="Location" /></label>
+          <div class="metric"><span>Pay</span><strong id="payStatus">Unknown</strong></div>
+          <div class="metric"><span>JD</span><strong id="jdStatus">—</strong></div>
         </div>
+      </section>
+
+      <section class="panel">
+        <div class="grid-2 source-row">
+          <label>Source
+            <select id="applicationSourceType">
+              <option value="unknown">Unsure</option>
+              <option value="direct">Direct</option>
+              <option value="third_party_recruiter">3rd-party recruiter</option>
+              <option value="staffing_agency">Staffing</option>
+              <option value="job_board">Job board</option>
+            </select>
+          </label>
+          <label>Resume<input id="resumeLabel" placeholder="Resume used" /></label>
+        </div>
+        <details>
+          <summary>Recruiter / notes</summary>
+          <div class="grid-2 details-grid">
+            <label>Recruiter<input id="recruiterName" placeholder="Optional" /></label>
+            <label>Firm<input id="recruiterCompany" placeholder="Optional" /></label>
+          </div>
+          <label>Recruiter notes<textarea id="recruiterNotes" placeholder="Context, trust level..."></textarea></label>
+          <label>Notes<textarea id="notes" placeholder="Applied through LinkedIn Easy Apply"></textarea></label>
+        </details>
+      </section>
+
+      <div class="actions">
+        <button id="capture" class="secondary">Recapture</button>
+        <button id="markApplied">Confirm Applied</button>
       </div>
-
-      <label>Application source
-        <select id="applicationSourceType">
-          <option value="unknown">Unsure / review later</option>
-          <option value="direct">Direct from company</option>
-          <option value="third_party_recruiter">Third-party recruiter</option>
-          <option value="staffing_agency">Staffing agency</option>
-          <option value="job_board">Job board / listing only</option>
-        </select>
-      </label>
-
-      <div class="grid-2">
-        <label>Recruiter name<input id="recruiterName" placeholder="Optional" /></label>
-        <label>Recruiter firm<input id="recruiterCompany" placeholder="Optional" /></label>
-      </div>
-      <label>Recruiter notes<textarea id="recruiterNotes" placeholder="Why this feels direct/recruiter-led, trust level, context..."></textarea></label>
-
-      <label>Resume used<input id="resumeLabel" placeholder="e.g. n8_Full_Stack_Resume.pdf" /></label>
-      <label>Notes<textarea id="notes" placeholder="Applied through LinkedIn Easy Apply"></textarea></label>
-
-      <button id="capture" class="secondary">Capture LinkedIn Page</button>
-      <button id="markApplied">Confirm Applied</button>
       <a id="openApplication" class="hidden" href="#" target="_blank">Open in JobSignal</a>
       <pre id="debug"></pre>
     </main>
