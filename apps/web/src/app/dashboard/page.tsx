@@ -1,24 +1,59 @@
-"use client";
-
-import { useMemo, useState } from "react";
-import { AlertTriangle, BarChart3, Briefcase, CheckCircle2, ChevronRight, Clock, RefreshCw, Search } from "lucide-react";
+import Link from "next/link";
+import { AlertTriangle, BarChart3, Briefcase, CheckCircle2, Clock, RefreshCw } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Badge, Button, Card } from "@/components/ui";
 import { StatusBadge } from "@/components/status";
-import { dashboardStats, mockApplications, mockEmailSignals } from "@/lib/mock-data";
+import { prisma } from "@/lib/prisma";
+import { EmailSignalsSection } from "./email-signals-section";
+
+const DEFAULT_USER_EMAIL = process.env.SINGLE_USER_EMAIL || "nathancwatkins23@gmail.com";
+
+export const dynamic = "force-dynamic";
 
 const icons = [Briefcase, BarChart3, CheckCircle2, AlertTriangle];
-const funnel = [
-  { stage: "Applied", count: 84, percent: 100 },
-  { stage: "Responses", count: 23, percent: 27.4 },
-  { stage: "Interviews", count: 6, percent: 7.1 },
-  { stage: "Assessments", count: 4, percent: 4.8 },
-  { stage: "Offers", count: 0, percent: 0 },
-];
 
-export default function DashboardPage() {
-  const [selectedEmail, setSelectedEmail] = useState<(typeof mockEmailSignals)[number] | null>(null);
-  const currentDate = useMemo(() => new Intl.DateTimeFormat("en", { weekday: "long", month: "long", day: "numeric" }).format(new Date()), []);
+export default async function DashboardPage() {
+  const user = await prisma.user.findUnique({ where: { email: DEFAULT_USER_EMAIL } });
+
+  const applications = user
+    ? await prisma.application.findMany({
+        where: { userId: user.id },
+        orderBy: [{ appliedAt: "desc" }, { createdAt: "desc" }],
+        include: {
+          jobPosting: {
+            include: { analyses: { orderBy: { createdAt: "desc" }, take: 1 } },
+          },
+        },
+      })
+    : [];
+
+  const total = applications.length;
+  const responded = applications.filter((a) => a.status !== "applied").length;
+  const interviews = applications.filter((a) => a.status === "interview_requested").length;
+  const assessments = applications.filter((a) => a.status === "assessment_requested").length;
+  const needsActionCount = applications.filter((a) => a.actionNeeded).length;
+  const responseRate = total > 0 ? ((responded / total) * 100).toFixed(1) : "0";
+
+  const stats = [
+    { label: "Applications Tracked", value: String(total), subtext: "Total captured applications" },
+    { label: "Response Rate", value: `${responseRate}%`, subtext: `${responded} responses from ${total} applications` },
+    { label: "Interview Requests", value: String(interviews), subtext: total > 0 ? `${((interviews / total) * 100).toFixed(1)}% conversion rate` : "No applications yet" },
+    { label: "Needs Action", value: String(needsActionCount), subtext: `${needsActionCount} item${needsActionCount !== 1 ? "s" : ""} flagged for follow-up` },
+  ];
+
+  const funnel = [
+    { stage: "Applied", count: total, percent: 100 },
+    { stage: "Responses", count: responded, percent: total > 0 ? parseFloat(((responded / total) * 100).toFixed(1)) : 0 },
+    { stage: "Interviews", count: interviews, percent: total > 0 ? parseFloat(((interviews / total) * 100).toFixed(1)) : 0 },
+    { stage: "Assessments", count: assessments, percent: total > 0 ? parseFloat(((assessments / total) * 100).toFixed(1)) : 0 },
+    { stage: "Offers", count: 0, percent: 0 },
+  ];
+
+  const needsActionItems = applications
+    .filter((a) => a.nextAction && a.nextAction !== "None" && a.nextAction !== "Wait")
+    .slice(0, 4);
+
+  const currentDate = new Intl.DateTimeFormat("en", { weekday: "long", month: "long", day: "numeric" }).format(new Date());
 
   return (
     <AppShell>
@@ -30,13 +65,13 @@ export default function DashboardPage() {
             <span>Dashboard</span>
           </div>
           <h1 className="text-3xl font-semibold tracking-tight text-white md:text-4xl">Good morning, Nathan</h1>
-          <p className="mt-2 text-slate-400">Here’s what changed in your job search inbox.</p>
+          <p className="mt-2 text-slate-400">Here's what changed in your job search inbox.</p>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-400">
-            Last scan: <span className="font-medium text-slate-200">14 minutes ago</span>
+            Last scan: <span className="font-medium text-slate-200">Gmail not connected</span>
           </div>
-          <Badge className="border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-emerald-300">Gmail connected</Badge>
+          <Badge className="border-slate-400/20 bg-slate-500/10 px-3 py-2 text-slate-300">Gmail stub</Badge>
           <Button className="rounded-2xl bg-white px-4 py-3 font-semibold text-slate-950 hover:bg-slate-200">
             <RefreshCw size={16} /> Scan Gmail
           </Button>
@@ -44,7 +79,7 @@ export default function DashboardPage() {
       </header>
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {dashboardStats.map((stat, index) => {
+        {stats.map((stat, index) => {
           const Icon = icons[index];
           return (
             <Card key={stat.label} className="p-5">
@@ -68,7 +103,11 @@ export default function DashboardPage() {
               <h2 className="text-base font-semibold text-white">Job Search Funnel</h2>
               <p className="mt-1 text-sm text-slate-400">Applied → responded → interview → offer</p>
             </div>
-            <Badge className="border-emerald-400/20 bg-emerald-500/10 text-emerald-300">27.4% response rate</Badge>
+            {responded > 0 && total > 0 ? (
+              <Badge className="border-emerald-400/20 bg-emerald-500/10 text-emerald-300">{responseRate}% response rate</Badge>
+            ) : (
+              <Badge className="border-white/10 bg-white/5 text-slate-400">No responses yet</Badge>
+            )}
           </div>
           <div className="space-y-4">
             {funnel.map((item) => (
@@ -89,76 +128,80 @@ export default function DashboardPage() {
           <div className="mb-5 flex items-center justify-between">
             <div>
               <h2 className="text-base font-semibold text-white">Needs Action</h2>
-              <p className="mt-1 text-sm text-slate-400">High-priority items from Gmail and your pipeline</p>
+              <p className="mt-1 text-sm text-slate-400">Applications with a next action set</p>
             </div>
             <Clock className="text-slate-500" size={19} />
           </div>
-          <div className="space-y-3">
-            {mockApplications.filter((app) => app.nextAction !== "None" && app.nextAction !== "Wait").slice(0, 4).map((item) => (
-              <div key={item.id} className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3 hover:bg-white/[0.06]">
-                <div className="min-w-0">
-                  <div className="mb-1 flex items-center gap-2"><p className="truncate text-sm font-medium text-white">{item.company}</p><StatusBadge status={item.status} /></div>
-                  <p className="truncate text-sm text-slate-400">{item.nextAction}</p>
-                </div>
-                <Button className="px-3 py-2 text-xs">Open</Button>
-              </div>
-            ))}
-          </div>
+          {needsActionItems.length === 0 ? (
+            <p className="text-sm text-slate-500">No items need action yet.</p>
+          ) : (
+            <div className="space-y-3">
+              {needsActionItems.map((app) => (
+                <Link key={app.id} href={`/applications/${app.id}`} className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3 hover:bg-white/[0.06]">
+                  <div className="min-w-0">
+                    <div className="mb-1 flex items-center gap-2">
+                      <p className="truncate text-sm font-medium text-white">{app.jobPosting.companyName}</p>
+                      <StatusBadge status={app.status} />
+                    </div>
+                    <p className="truncate text-sm text-slate-400">{app.nextAction}</p>
+                  </div>
+                  <Button className="px-3 py-2 text-xs">Open</Button>
+                </Link>
+              ))}
+            </div>
+          )}
         </Card>
       </section>
 
       <section className="mt-4 space-y-4">
-        <Card className="overflow-hidden">
-          <div className="flex flex-col gap-4 border-b border-white/10 p-5 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h2 className="text-base font-semibold text-white">Recent Email Signals</h2>
-              <p className="mt-1 text-sm text-slate-400">Latest job-related emails classified from Gmail.</p>
-            </div>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <div className="relative"><Search className="pointer-events-none absolute left-3 top-2.5 text-slate-500" size={16} /><input className="h-10 w-full rounded-xl border border-white/10 bg-slate-900/70 pl-9 pr-3 text-sm text-slate-200 outline-none placeholder:text-slate-600 focus:border-indigo-400/50 sm:w-64" placeholder="Search companies or subjects…" /></div>
-              <Button>All classifications</Button>
-              <Button className="border-amber-400/20 bg-amber-500/10 text-amber-200 hover:bg-amber-500/15">Needs action</Button>
-            </div>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[820px] text-left text-sm">
-              <thead className="bg-white/[0.02] text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-5 py-3 font-medium">Company</th><th className="px-5 py-3 font-medium">Subject</th><th className="px-5 py-3 font-medium">Classification</th><th className="px-5 py-3 font-medium">Confidence</th><th className="px-5 py-3 font-medium">Received</th><th className="px-5 py-3 font-medium">Action</th></tr></thead>
-              <tbody className="divide-y divide-white/10">
-                {mockEmailSignals.map((email) => (
-                  <tr key={email.id} onClick={() => setSelectedEmail(email)} className="cursor-pointer transition hover:bg-white/[0.04]">
-                    <td className="px-5 py-4"><div className="font-medium text-white">{email.company}</div><div className="mt-1 text-xs text-slate-500">{email.role}</div></td>
-                    <td className="max-w-[300px] px-5 py-4"><div className="truncate text-slate-200">{email.subject}</div><div className="mt-1 truncate text-xs text-slate-500">{email.sender}</div></td>
-                    <td className="px-5 py-4"><StatusBadge status={email.classification} /></td>
-                    <td className="px-5 py-4 text-slate-300">{email.confidence}%</td>
-                    <td className="px-5 py-4 text-slate-400">{email.received}</td>
-                    <td className="px-5 py-4"><Button className="text-xs">{email.action}<ChevronRight size={14} /></Button></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
+        <EmailSignalsSection />
 
         <Card className="overflow-hidden">
-          <div className="border-b border-white/10 p-5"><h2 className="text-base font-semibold text-white">Application Pipeline</h2><p className="mt-1 text-sm text-slate-400">Tracked companies and their latest known status.</p></div>
-          <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-white/[0.02] text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-5 py-3 font-medium">Company</th><th className="px-5 py-3 font-medium">Role</th><th className="px-5 py-3 font-medium">Status</th><th className="px-5 py-3 font-medium">Fit</th><th className="px-5 py-3 font-medium">Pay</th><th className="px-5 py-3 font-medium">Next Action</th></tr></thead><tbody className="divide-y divide-white/10">{mockApplications.map((app) => <tr key={app.id} className="hover:bg-white/[0.04]"><td className="px-5 py-4 font-medium text-white">{app.company}</td><td className="px-5 py-4 text-slate-300">{app.role}</td><td className="px-5 py-4"><StatusBadge status={app.status} /></td><td className="px-5 py-4 text-slate-300">{app.fitScore}</td><td className="px-5 py-4">{app.payListed ? <Badge className="border-emerald-400/20 bg-emerald-500/10 text-emerald-300">Listed</Badge> : <Badge className="border-amber-400/20 bg-amber-500/10 text-amber-300">Missing</Badge>}</td><td className="px-5 py-4 text-slate-300">{app.nextAction}</td></tr>)}</tbody></table></div>
+          <div className="border-b border-white/10 p-5">
+            <h2 className="text-base font-semibold text-white">Application Pipeline</h2>
+            <p className="mt-1 text-sm text-slate-400">Tracked companies and their latest known status.</p>
+          </div>
+          {applications.length === 0 ? (
+            <p className="p-5 text-sm text-slate-400">No applications yet. <Link href="/applications/new" className="text-indigo-400 hover:underline">Add one manually</Link> or use the extension.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px] text-left text-sm">
+                <thead className="bg-white/[0.02] text-xs uppercase tracking-wide text-slate-500">
+                  <tr>
+                    <th className="px-5 py-3 font-medium">Company</th>
+                    <th className="px-5 py-3 font-medium">Role</th>
+                    <th className="px-5 py-3 font-medium">Status</th>
+                    <th className="px-5 py-3 font-medium">Fit</th>
+                    <th className="px-5 py-3 font-medium">Pay</th>
+                    <th className="px-5 py-3 font-medium">Next Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/10">
+                  {applications.map((app) => {
+                    const analysis = app.jobPosting.analyses[0];
+                    return (
+                      <tr key={app.id} className="hover:bg-white/[0.04]">
+                        <td className="px-5 py-4">
+                          <Link href={`/applications/${app.id}`} className="font-medium text-white hover:underline">{app.jobPosting.companyName}</Link>
+                        </td>
+                        <td className="px-5 py-4 text-slate-300">{app.jobPosting.roleTitle}</td>
+                        <td className="px-5 py-4"><StatusBadge status={app.status} /></td>
+                        <td className="px-5 py-4 text-slate-300">{analysis?.fitScore ?? "—"}</td>
+                        <td className="px-5 py-4">
+                          {app.jobPosting.salaryListed
+                            ? <Badge className="border-emerald-400/20 bg-emerald-500/10 text-emerald-300">Listed</Badge>
+                            : <Badge className="border-amber-400/20 bg-amber-500/10 text-amber-300">Missing</Badge>}
+                        </td>
+                        <td className="px-5 py-4 text-slate-300">{app.nextAction || "—"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </Card>
       </section>
-
-      {selectedEmail ? (
-        <div className="fixed inset-0 z-50 flex justify-end bg-black/50 backdrop-blur-sm">
-          <button className="hidden flex-1 cursor-default md:block" onClick={() => setSelectedEmail(null)} aria-label="Close drawer" />
-          <aside className="h-full w-full max-w-xl overflow-y-auto border-l border-white/10 bg-slate-950 p-6 shadow-2xl">
-            <div className="mb-6"><StatusBadge status={selectedEmail.classification} /><h2 className="mt-4 text-2xl font-semibold tracking-tight text-white">{selectedEmail.company}</h2><p className="mt-1 text-sm text-slate-400">{selectedEmail.role}</p></div>
-            <div className="space-y-4">
-              <Card className="p-4"><p className="text-xs uppercase tracking-wide text-slate-500">Subject</p><p className="mt-1 text-sm text-slate-200">{selectedEmail.subject}</p><p className="mt-3 text-xs uppercase tracking-wide text-slate-500">Sender</p><p className="mt-1 text-sm text-slate-200">{selectedEmail.sender}</p></Card>
-              <Card className="p-4"><div className="mb-3 flex items-center justify-between"><p className="text-sm font-medium text-white">AI Classification</p><Badge className="border-emerald-400/20 bg-emerald-500/10 text-emerald-300">{selectedEmail.confidence}% confidence</Badge></div><p className="text-sm leading-6 text-slate-300">{selectedEmail.reason}</p></Card>
-              <Card className="p-4"><p className="text-sm font-medium text-white">Email Snippet</p><p className="mt-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm leading-6 text-slate-300">{selectedEmail.snippet}</p></Card>
-            </div>
-            <div className="mt-6 grid gap-3 sm:grid-cols-3"><Button className="bg-indigo-500 text-white hover:bg-indigo-400">Open in Gmail</Button><Button>Correct</Button><Button>Mark Done</Button></div>
-          </aside>
-        </div>
-      ) : null}
     </AppShell>
   );
 }

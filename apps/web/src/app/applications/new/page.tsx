@@ -5,19 +5,32 @@ import { AppShell } from "@/components/app-shell";
 import { Button, Card, Input, Textarea } from "@/components/ui";
 
 export default function NewApplicationPage() {
-  const [result, setResult] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setError(null);
+    setLoading(true);
     const form = new FormData(event.currentTarget);
     const payload = Object.fromEntries(form.entries());
-    const response = await fetch("/api/applications", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const data = await response.json();
-    setResult(JSON.stringify(data, null, 2));
+    try {
+      const response = await fetch("/api/applications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json();
+      if (data.ok && data.applicationUrl) {
+        window.location.href = data.applicationUrl;
+        return;
+      }
+      setError(JSON.stringify(data, null, 2));
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -30,11 +43,11 @@ export default function NewApplicationPage() {
           <label className="block text-sm text-slate-300">Job URL<Input name="jobUrl" className="mt-2" placeholder="https://..." /></label>
           <label className="block text-sm text-slate-300">Source<Input name="source" className="mt-2" placeholder="LinkedIn" /></label>
           <label className="block text-sm text-slate-300">Location<Input name="location" className="mt-2" placeholder="Remote" /></label>
-          <Button type="submit" className="w-full bg-white text-slate-950 hover:bg-slate-200">Create + Analyze</Button>
+          <Button type="submit" disabled={loading} className="w-full bg-white text-slate-950 hover:bg-slate-200">{loading ? "Saving…" : "Create + Analyze"}</Button>
         </Card>
         <Card className="p-5"><label className="block text-sm text-slate-300">Job Description<Textarea name="rawDescription" className="mt-2 min-h-[420px]" placeholder="Paste JD here..." /></label></Card>
       </form>
-      {result ? <Card className="mt-4 p-5"><pre className="overflow-x-auto text-xs text-slate-300">{result}</pre></Card> : null}
+      {error ? <Card className="mt-4 p-5"><pre className="overflow-x-auto text-xs text-red-400">{error}</pre></Card> : null}
     </AppShell>
   );
 }

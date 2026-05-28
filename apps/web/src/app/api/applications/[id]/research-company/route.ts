@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const body = await request.json();
   return NextResponse.json({
-    applicationId: params.id,
+    applicationId: id,
     companyName: body.companyName,
     message: "Company research stub. Wire search/provider later.",
     research: {
