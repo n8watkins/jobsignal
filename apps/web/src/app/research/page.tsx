@@ -3,7 +3,7 @@ import { Badge, Card } from "@/components/ui";
 import { prisma } from "@/lib/prisma";
 import { getResearchBudgetSnapshot } from "@/lib/research/budget";
 import { getResearchQueue } from "@/lib/research/queue";
-import { QueueAppliedResearchButton, RunPlaceholderTaskButton } from "./research-actions";
+import { QueueAppliedResearchButton, RunGeminiTaskButton, RunPlaceholderTaskButton } from "./research-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -52,7 +52,10 @@ export default async function ResearchPage() {
                     <p className="mt-1 text-sm text-slate-400">{task.taskType}</p>
                     {task.reason ? <p className="mt-2 text-sm text-slate-500">{task.reason}</p> : null}
                   </div>
-                  <RunPlaceholderTaskButton id={task.id} />
+                  <div className="space-y-2">
+                    <RunPlaceholderTaskButton id={task.id} />
+                    <RunGeminiTaskButton id={task.id} />
+                  </div>
                 </div>
               ))}
             </div>
