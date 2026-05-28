@@ -5,6 +5,12 @@ import { prisma } from "@/lib/prisma";
 const DEFAULT_USER_EMAIL = process.env.SINGLE_USER_EMAIL || "nathancwatkins23@gmail.com";
 const DEFAULT_USER_NAME = "Nathan Watkins";
 
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+};
+
 type MarkAppliedPayload = {
   source?: string;
   sourceJobId?: string;
@@ -26,6 +32,10 @@ type MarkAppliedPayload = {
   notes?: string;
   appliedAt?: string;
 };
+
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
+}
 
 export async function POST(request: Request) {
   try {
@@ -142,19 +152,23 @@ export async function POST(request: Request) {
       return { jobPosting, application };
     });
 
-    return NextResponse.json({
-      ok: true,
-      applicationId: result.application.id,
-      jobPostingId: result.jobPosting.id,
-      status: result.application.status,
-      duplicateStatus: "checked",
-      analysisQueued: false,
-      applicationUrl: `/applications/${result.application.id}`,
-    });
+    return withCors(
+      NextResponse.json({
+        ok: true,
+        applicationId: result.application.id,
+        jobPostingId: result.jobPosting.id,
+        status: result.application.status,
+        duplicateStatus: "checked",
+        analysisQueued: false,
+        applicationUrl: `/applications/${result.application.id}`,
+      }),
+    );
   } catch (error) {
     console.error("[mark-applied] failed", error);
     const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ ok: false, error: "mark_applied_failed", message, hint: getErrorHint(message) }, { status: 500 });
+    return withCors(
+      NextResponse.json({ ok: false, error: "mark_applied_failed", message, hint: getErrorHint(message) }, { status: 500 }),
+    );
   }
 }
 
@@ -188,6 +202,13 @@ async function findExistingJobPosting(
       canonicalRoleTitle: normalize(input.roleTitle),
     },
   });
+}
+
+function withCors(response: NextResponse) {
+  for (const [key, value] of Object.entries(CORS_HEADERS)) {
+    response.headers.set(key, value);
+  }
+  return response;
 }
 
 function getErrorHint(message: string) {
