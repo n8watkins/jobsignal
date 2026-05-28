@@ -1,9 +1,12 @@
 import Link from "next/link";
-import { Briefcase, CheckCircle2, Inbox, LayoutDashboard, Mail, Settings, Sparkles } from "lucide-react";
+import { Briefcase, CheckCircle2, Inbox, LayoutDashboard, Mail, Radar, Search, Settings, Sparkles, UserCircle } from "lucide-react";
 
 const items = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { label: "Job Radar", href: "/candidate-jobs", icon: Radar },
   { label: "Applications", href: "/applications", icon: Briefcase },
+  { label: "Research", href: "/research", icon: Search },
+  { label: "Profile", href: "/profile", icon: UserCircle },
   { label: "Inbox", href: "/inbox", icon: Mail },
   { label: "Review Queue", href: "/review", icon: Inbox, count: 3 },
   { label: "Settings", href: "/settings", icon: Settings },
@@ -20,7 +23,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
             <div>
               <h1 className="text-lg font-semibold text-white">JobSignal</h1>
-              <p className="text-xs text-slate-400">AI job-search tracker</p>
+              <p className="text-xs text-slate-400">Job-search command center</p>
             </div>
           </div>
 
@@ -48,7 +51,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <CheckCircle2 size={16} /> Personal beta
             </div>
             <p className="text-xs leading-5 text-slate-400">
-              Single-user starter. Wire auth and Gmail credentials when ready.
+              Single-user tracker. Job Radar and research queue are designed to enrich applications without blocking the core workflow.
             </p>
           </div>
         </aside>
