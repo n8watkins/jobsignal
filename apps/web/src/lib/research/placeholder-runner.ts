@@ -1,17 +1,11 @@
 import { prisma } from "@/lib/prisma";
-import { canSpendResearchBudget, recordSearchSpend } from "./budget";
+import { recordSearchSpend } from "./budget";
 import { evaluateCompanyProfile, generateFollowupTasksFromProfile } from "./profile-evaluator";
 
 export async function runPlaceholderResearchTask(taskId: string) {
   const task = await prisma.researchTask.findUnique({ where: { id: taskId } });
   if (!task) throw new Error("Research task not found");
   if (task.status === "completed") return { task, profile: null, skipped: true, reason: "Task already completed" };
-
-  const budgetCheck = await canSpendResearchBudget(task.budgetCategory as any, task.searchCostEstimate);
-  if (!budgetCheck.ok) {
-    const deferred = await prisma.researchTask.update({ where: { id: task.id }, data: { status: "deferred" } });
-    return { task: deferred, profile: null, skipped: true, reason: budgetCheck.reason };
-  }
 
   await prisma.researchTask.update({ where: { id: task.id }, data: { status: "running", attempts: { increment: 1 }, startedAt: new Date() } });
 
@@ -71,9 +65,9 @@ export async function runPlaceholderResearchTask(taskId: string) {
   });
 
   await recordSearchSpend({
-    feature: task.taskType,
+    feature: `${task.taskType}_placeholder`,
     budgetCategory: task.budgetCategory as any,
-    searchRequests: task.searchCostEstimate,
+    searchRequests: 0,
     researchTaskId: task.id,
     candidateJobId: task.candidateJobId || undefined,
     applicationId: task.applicationId || undefined,
