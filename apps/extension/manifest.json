@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "JobSignal Capture",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Mark jobs as applied and send captured job details to JobSignal.",
   "permissions": ["activeTab", "scripting", "storage", "commands"],
   "host_permissions": [
@@ -10,7 +10,8 @@
     "https://jobs.lever.co/*",
     "https://*.ashbyhq.com/*",
     "https://*.myworkdayjobs.com/*",
-    "http://localhost:3000/*"
+    "http://localhost:3000/*",
+    "http://localhost:3002/*"
   ],
   "background": {
     "service_worker": "background.js",
