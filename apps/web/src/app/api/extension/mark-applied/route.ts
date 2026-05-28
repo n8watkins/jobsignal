@@ -38,13 +38,6 @@ export async function POST(request: Request) {
         ? await tx.resumeVersion.findFirst({ where: { id: input.resumeVersionId, userId: user.id } })
         : null;
 
-      const recruiterContact = await findOrCreateRecruiterContact(tx, {
-        userId: user.id,
-        recruiterName: input.recruiterName,
-        recruiterCompany: input.recruiterCompany,
-        recruiterNotes: input.recruiterNotes,
-      });
-
       const existingJobPosting = await findExistingJobPosting(tx, {
         userId: user.id,
         source: input.source,
@@ -112,6 +105,15 @@ export async function POST(request: Request) {
         where: { jobPostingId: jobPosting.id },
       });
 
+      const sourceNote = buildSourceNote({
+        applicationSourceType,
+        recruiterName: input.recruiterName,
+        recruiterCompany: input.recruiterCompany,
+        recruiterNotes: input.recruiterNotes,
+        resumeLabel: input.resumeLabel,
+        notes: input.notes,
+      });
+
       const application = existingApplication
         ? await tx.application.update({
             where: { id: existingApplication.id },
@@ -119,15 +121,9 @@ export async function POST(request: Request) {
               status: existingApplication.status === "rejected" ? existingApplication.status : "applied",
               source: input.source,
               applicationMethod: input.applicationMethod || "linkedin_easy_apply",
-              applicationSourceType,
-              recruiterContactId: recruiterContact?.id,
-              recruiterName: input.recruiterName || existingApplication.recruiterName,
-              recruiterCompany: input.recruiterCompany || existingApplication.recruiterCompany,
-              recruiterNotes: input.recruiterNotes || existingApplication.recruiterNotes,
               appliedAt: existingApplication.appliedAt || appliedAt,
               resumeVersionId: resumeVersion?.id,
-              resumeLabel: input.resumeLabel || existingApplication.resumeLabel,
-              notes: input.notes || existingApplication.notes,
+              notes: mergeNotes(existingApplication.notes, sourceNote),
             },
           })
         : await tx.application.create({
@@ -137,15 +133,9 @@ export async function POST(request: Request) {
               status: "applied",
               source: input.source,
               applicationMethod: input.applicationMethod || "linkedin_easy_apply",
-              applicationSourceType,
-              recruiterContactId: recruiterContact?.id,
-              recruiterName: input.recruiterName,
-              recruiterCompany: input.recruiterCompany,
-              recruiterNotes: input.recruiterNotes,
               appliedAt,
               resumeVersionId: resumeVersion?.id,
-              resumeLabel: input.resumeLabel,
-              notes: input.notes,
+              notes: sourceNote,
             },
           });
 
@@ -165,6 +155,7 @@ export async function POST(request: Request) {
             applicationSourceType,
             recruiterName: input.recruiterName,
             recruiterCompany: input.recruiterCompany,
+            recruiterNotes: input.recruiterNotes,
             resumeLabel: input.resumeLabel,
           }),
           occurredAt: appliedAt,
@@ -223,41 +214,10 @@ function getErrorHint(message: string) {
   if (lower.includes("no such column") || lower.includes("no such table") || lower.includes("does not exist")) {
     return "Your local Prisma database is behind the schema. Run: pnpm db:generate && pnpm db:migrate, then restart pnpm dev.";
   }
-  if (lower.includes("recruitercontact") || lower.includes("unknown arg") || lower.includes("prisma client")) {
+  if (lower.includes("prisma client") || lower.includes("unknown arg")) {
     return "Your generated Prisma client is stale. Run: pnpm db:generate, then restart pnpm dev.";
   }
   return "Check the terminal running pnpm dev for the full backend stack trace.";
-}
-
-async function findOrCreateRecruiterContact(
-  tx: Prisma.TransactionClient,
-  input: {
-    userId: string;
-    recruiterName?: string;
-    recruiterCompany?: string;
-    recruiterNotes?: string;
-  },
-) {
-  if (!input.recruiterName && !input.recruiterCompany) return null;
-
-  const existing = await tx.recruiterContact.findFirst({
-    where: {
-      userId: input.userId,
-      name: input.recruiterName || undefined,
-      firmName: input.recruiterCompany || undefined,
-    },
-  });
-
-  if (existing) return existing;
-
-  return tx.recruiterContact.create({
-    data: {
-      userId: input.userId,
-      name: input.recruiterName,
-      firmName: input.recruiterCompany,
-      notes: input.recruiterNotes,
-    },
-  });
 }
 
 async function findExistingJobPosting(
@@ -290,6 +250,35 @@ async function findExistingJobPosting(
       canonicalRoleTitle: normalize(input.roleTitle),
     },
   });
+}
+
+function buildSourceNote(input: {
+  applicationSourceType?: string;
+  recruiterName?: string;
+  recruiterCompany?: string;
+  recruiterNotes?: string;
+  resumeLabel?: string;
+  notes?: string;
+}) {
+  const lines = [
+    input.notes?.trim(),
+    input.resumeLabel ? `Resume used: ${input.resumeLabel}` : undefined,
+    input.applicationSourceType && input.applicationSourceType !== "unknown"
+      ? `Application source: ${input.applicationSourceType}`
+      : undefined,
+    input.recruiterName ? `Recruiter: ${input.recruiterName}` : undefined,
+    input.recruiterCompany ? `Recruiter firm: ${input.recruiterCompany}` : undefined,
+    input.recruiterNotes ? `Recruiter notes: ${input.recruiterNotes}` : undefined,
+  ].filter(Boolean);
+
+  return lines.join("\n");
+}
+
+function mergeNotes(existingNotes: string | null | undefined, newNotes: string) {
+  if (!newNotes) return existingNotes;
+  if (!existingNotes) return newNotes;
+  if (existingNotes.includes(newNotes)) return existingNotes;
+  return `${existingNotes}\n\n${newNotes}`;
 }
 
 function firstNonEmpty(...values: Array<string | null | undefined>) {
