@@ -1,6 +1,6 @@
 import type { CapturedJob } from "./types";
 
-const DEFAULT_API_BASE = "http://localhost:3000";
+const DEFAULT_API_BASE = "http://localhost:3002";
 
 export async function getApiBase() {
   const stored = await chrome.storage.sync.get(["apiBase"]);
