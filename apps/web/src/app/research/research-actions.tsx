@@ -54,3 +54,29 @@ export function RunPlaceholderTaskButton({ id }: { id: string }) {
     </div>
   );
 }
+
+export function RunGeminiTaskButton({ id }: { id: string }) {
+  const router = useRouter();
+  const [status, setStatus] = useState("");
+
+  async function runTask() {
+    setStatus("Running Gemini Search...");
+    const response = await fetch(`/api/research/tasks/${id}/run-gemini`, { method: "POST" });
+    const data = await response.json().catch(() => null);
+    if (!response.ok || !data?.ok) {
+      setStatus(data?.error || "Gemini research failed.");
+      return;
+    }
+    setStatus(data.skipped ? data.reason || "Skipped." : "Gemini research completed.");
+    router.refresh();
+  }
+
+  return (
+    <div>
+      <button onClick={runTask} className="rounded-xl bg-violet-500 px-3 py-2 text-xs font-semibold text-white transition hover:bg-violet-400">
+        Run Gemini
+      </button>
+      {status ? <p className="mt-2 text-xs text-slate-500">{status}</p> : null}
+    </div>
+  );
+}
