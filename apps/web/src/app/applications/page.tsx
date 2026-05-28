@@ -6,6 +6,8 @@ import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
+const DEFAULT_USER_EMAIL = process.env.SINGLE_USER_EMAIL || "nathancwatkins23@gmail.com";
+
 const columns = [
   { key: "applied", label: "Applied" },
   { key: "application_confirmed", label: "Confirmed" },
@@ -15,7 +17,9 @@ const columns = [
 ];
 
 export default async function ApplicationsPage() {
-  const applications = await prisma.application.findMany({
+  const user = await prisma.user.findUnique({ where: { email: DEFAULT_USER_EMAIL } });
+  const applications = user ? await prisma.application.findMany({
+    where: { userId: user.id },
     orderBy: [{ appliedAt: "desc" }, { createdAt: "desc" }],
     include: {
       jobPosting: {
@@ -31,7 +35,7 @@ export default async function ApplicationsPage() {
         take: 1,
       },
     },
-  });
+  }) : [];
 
   return (
     <AppShell>

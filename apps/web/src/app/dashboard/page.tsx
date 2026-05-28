@@ -27,8 +27,10 @@ export default async function DashboardPage() {
       })
     : [];
 
+  const RESPONSE_STATUSES = new Set(["application_confirmed", "recruiter_responded", "interview_requested", "assessment_requested", "interviewing", "offer_final_stage"]);
+
   const total = applications.length;
-  const responded = applications.filter((a) => a.status !== "applied").length;
+  const responded = applications.filter((a) => RESPONSE_STATUSES.has(a.status)).length;
   const interviews = applications.filter((a) => a.status === "interview_requested").length;
   const assessments = applications.filter((a) => a.status === "assessment_requested").length;
   const needsActionCount = applications.filter((a) => a.actionNeeded).length;
@@ -41,11 +43,12 @@ export default async function DashboardPage() {
     { label: "Needs Action", value: String(needsActionCount), subtext: `${needsActionCount} item${needsActionCount !== 1 ? "s" : ""} flagged for follow-up` },
   ];
 
+  const pct = (n: number) => total > 0 ? parseFloat(((n / total) * 100).toFixed(1)) : 0;
   const funnel = [
-    { stage: "Applied", count: total, percent: 100 },
-    { stage: "Responses", count: responded, percent: total > 0 ? parseFloat(((responded / total) * 100).toFixed(1)) : 0 },
-    { stage: "Interviews", count: interviews, percent: total > 0 ? parseFloat(((interviews / total) * 100).toFixed(1)) : 0 },
-    { stage: "Assessments", count: assessments, percent: total > 0 ? parseFloat(((assessments / total) * 100).toFixed(1)) : 0 },
+    { stage: "Applied", count: total, percent: pct(total) },
+    { stage: "Responses", count: responded, percent: pct(responded) },
+    { stage: "Interviews", count: interviews, percent: pct(interviews) },
+    { stage: "Assessments", count: assessments, percent: pct(assessments) },
     { stage: "Offers", count: 0, percent: 0 },
   ];
 

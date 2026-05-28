@@ -20,8 +20,13 @@ export default function NewApplicationPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
+      if (!response.ok) {
+        const text = await response.text();
+        setError(`Server error ${response.status}: ${text.slice(0, 300)}`);
+        return;
+      }
       const data = await response.json();
-      if (data.ok && data.applicationUrl) {
+      if (data.applicationUrl) {
         window.location.href = data.applicationUrl;
         return;
       }

@@ -5,6 +5,7 @@ import { Badge, Card } from "@/components/ui";
 import { StatusBadge } from "@/components/status";
 import { prisma } from "@/lib/prisma";
 import { QueueCompanyResearchButton } from "./company-intelligence-actions";
+import { ApplicationStatusSelect } from "./application-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -72,7 +73,8 @@ export default async function ApplicationDetailPage({ params }: { params: Promis
             Applied {formatDate(app.appliedAt || app.createdAt)}. {app.nextAction ? `Next action: ${app.nextAction}` : "No next action set."}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-start gap-2">
+          <ApplicationStatusSelect applicationId={app.id} currentStatus={app.status} />
           {app.jobPosting.jobUrl ? (
             <Link href={app.jobPosting.jobUrl} target="_blank" className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10">Open Job</Link>
           ) : null}
@@ -135,22 +137,44 @@ export default async function ApplicationDetailPage({ params }: { params: Promis
         </Card>
       </div>
 
-      <Card className="mt-4 overflow-hidden">
-        <div className="border-b border-white/10 p-5">
-          <h2 className="font-semibold text-white">Email Signals</h2>
-          <p className="mt-1 text-sm text-slate-400">Gmail-linked events will appear here once Gmail scanning is wired.</p>
-        </div>
-        <div className="divide-y divide-white/10">
-          {app.emailEvents.length === 0 ? <p className="p-5 text-sm text-slate-400">No linked emails yet.</p> : null}
-          {app.emailEvents.map((email) => (
-            <div key={email.id} className="p-5 text-sm">
-              <div className="flex flex-wrap items-center gap-2"><StatusBadge status={email.classification} /><span className="text-slate-400">{formatDate(email.receivedAt)}</span></div>
-              <p className="mt-2 font-medium text-white">{email.subject}</p>
-              <p className="mt-1 text-slate-400">{email.snippet}</p>
-            </div>
-          ))}
-        </div>
-      </Card>
+      <div className="mt-4 grid gap-4 xl:grid-cols-2">
+        <Card className="overflow-hidden">
+          <div className="border-b border-white/10 p-5">
+            <h2 className="font-semibold text-white">Timeline</h2>
+            <p className="mt-1 text-sm text-slate-400">Status changes and application events.</p>
+          </div>
+          <div className="divide-y divide-white/10">
+            {app.events.length === 0
+              ? <p className="p-5 text-sm text-slate-400">No events yet.</p>
+              : app.events.map((event) => (
+                <div key={event.id} className="p-5">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-medium text-white">{event.title}</p>
+                    <span className="text-xs text-slate-500">{formatDate(event.occurredAt)}</span>
+                  </div>
+                  {event.description ? <p className="mt-1 text-sm text-slate-400">{event.description}</p> : null}
+                </div>
+              ))}
+          </div>
+        </Card>
+
+        <Card className="overflow-hidden">
+          <div className="border-b border-white/10 p-5">
+            <h2 className="font-semibold text-white">Email Signals</h2>
+            <p className="mt-1 text-sm text-slate-400">Gmail-linked events will appear here once Gmail scanning is wired.</p>
+          </div>
+          <div className="divide-y divide-white/10">
+            {app.emailEvents.length === 0 ? <p className="p-5 text-sm text-slate-400">No linked emails yet.</p> : null}
+            {app.emailEvents.map((email) => (
+              <div key={email.id} className="p-5 text-sm">
+                <div className="flex flex-wrap items-center gap-2"><StatusBadge status={email.classification} /><span className="text-slate-400">{formatDate(email.receivedAt)}</span></div>
+                <p className="mt-2 font-medium text-white">{email.subject}</p>
+                <p className="mt-1 text-slate-400">{email.snippet}</p>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
     </AppShell>
   );
 }
@@ -247,7 +271,10 @@ function parseJsonArray(value?: string | null) {
   try {
     const parsed = JSON.parse(value);
     if (!Array.isArray(parsed)) return [];
-    return parsed.map((item) => typeof item === "string" ? item : JSON.stringify(item)).filter(Boolean);
+    return parsed
+      .filter((item) => item != null)
+      .map((item) => typeof item === "string" ? item : JSON.stringify(item))
+      .filter(Boolean);
   } catch {
     return [];
   }

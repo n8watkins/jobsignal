@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { CapturedJobSchema } from "@jobsignal/shared";
 import { extractJobDescription, analyzeJobFit } from "@/lib/ai/analyze-job";
 import { queueBaselineResearchForApplication } from "@/lib/research/queue";
+import { normalizeText } from "@/lib/utils";
 
 const DEFAULT_USER_EMAIL = process.env.SINGLE_USER_EMAIL || "nathancwatkins23@gmail.com";
 const DEFAULT_USER_NAME = "Nathan Watkins";
@@ -49,8 +50,8 @@ export async function POST(request: Request) {
         userId: user.id,
         companyName,
         roleTitle,
-        canonicalCompanyName: normalize(companyName),
-        canonicalRoleTitle: normalize(roleTitle),
+        canonicalCompanyName: normalizeText(companyName),
+        canonicalRoleTitle: normalizeText(roleTitle),
         jobUrl: parsed.data.jobUrl,
         source: parsed.data.source,
         rawDescription: parsed.data.rawDescription,
@@ -135,6 +136,3 @@ async function getUser() {
   });
 }
 
-function normalize(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-}

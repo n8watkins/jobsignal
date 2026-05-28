@@ -22,6 +22,16 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const { id } = await params;
   const body = await request.json();
   const data = Object.fromEntries(Object.entries(body).filter(([k]) => PATCHABLE.includes(k)));
-  const application = await prisma.application.update({ where: { id }, data });
-  return NextResponse.json({ application });
+
+  if (Object.keys(data).length === 0) {
+    return NextResponse.json({ error: "no_valid_fields" }, { status: 400 });
+  }
+
+  try {
+    const application = await prisma.application.update({ where: { id }, data });
+    return NextResponse.json({ application });
+  } catch (err: any) {
+    if (err?.code === "P2025") return NextResponse.json({ error: "not_found" }, { status: 404 });
+    throw err;
+  }
 }
