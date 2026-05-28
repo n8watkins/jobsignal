@@ -1,4 +1,5 @@
 import { extractCurrentJob } from "./extractors";
+import { startLinkedInJobRadar } from "./linkedinRadar";
 
 const START_APPLY_TEXT_PATTERN = /^(easy apply|apply|apply now)$/i;
 const SUBMIT_TEXT_PATTERN = /^(submit application|submit|send application)$/i;
@@ -71,3 +72,5 @@ function showJobSignalToast(message: string) {
 
   window.setTimeout(() => toast.remove(), 7000);
 }
+
+startLinkedInJobRadar();
