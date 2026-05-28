@@ -7,7 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-
 model User {
   id                String             @id @default(cuid())
   email             String             @unique
@@ -23,6 +22,8 @@ model User {
   emailEvents       EmailEvent[]
   jobAnalyses       JobAnalysis[]
   companyResearch   CompanyResearch[]
+  candidateJobs     CandidateJob[]
+  jobSearchProfile  JobSearchProfile?
 }
 
 model ResumeVersion {
@@ -93,12 +94,52 @@ model JobPosting {
   @@index([userId, companyName, roleTitle])
 }
 
+model CandidateJob {
+  id                    String                 @id @default(cuid())
+  userId                String
+  user                  User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  source                String                 @default("linkedin")
+  sourceJobId           String?
+  jobUrl                String?
+  companyName           String
+  roleTitle             String
+  location              String?
+  salaryText            String?
+  salaryListed          Boolean                @default(false)
+  workArrangement       String                 @default("unknown")
+  employmentType        String                 @default("unknown")
+  contractDuration      String?
+  hoursPerWeek          String?
+  rawCardText           String?
+  rawDescription        String?
+  status                String                 @default("sourced")
+  fitScore              Int?
+  scoreLabel            String?
+  scoreReasons          String                 @default("[]")
+  riskFlags             String                 @default("[]")
+  requiredTechnologies  String                 @default("[]")
+  preferredTechnologies String                 @default("[]")
+  matchedTechnologies   String                 @default("[]")
+  missingTechnologies   String                 @default("[]")
+  emphasisAreas         String                 @default("[]")
+  application           Application?
+  analyses              CandidateJobAnalysis[]
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+
+  @@index([userId, status])
+  @@index([userId, sourceJobId])
+  @@index([userId, companyName, roleTitle])
+}
+
 model Application {
   id                    String             @id @default(cuid())
   userId                String
   user                  User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   jobPostingId          String             @unique
   jobPosting            JobPosting         @relation(fields: [jobPostingId], references: [id], onDelete: Cascade)
+  candidateJobId        String?            @unique
+  candidateJob          CandidateJob?      @relation(fields: [candidateJobId], references: [id], onDelete: SetNull)
   status                String             @default("applied")
   source                String?
   applicationMethod     String?
@@ -198,6 +239,53 @@ model JobAnalysis {
   @@index([jobPostingId])
 }
 
+model CandidateJobAnalysis {
+  id                       String       @id @default(cuid())
+  candidateJobId           String
+  candidateJob             CandidateJob @relation(fields: [candidateJobId], references: [id], onDelete: Cascade)
+  overallFitScore          Int
+  techMatchScore           Int?
+  seniorityFitScore        Int?
+  compensationScore        Int?
+  requiredTechnologies     String       @default("[]")
+  preferredTechnologies    String       @default("[]")
+  matchedTechnologies      String       @default("[]")
+  missingTechnologies      String       @default("[]")
+  emphasisAreas            String       @default("[]")
+  likelyDayToDay           String       @default("[]")
+  riskFlags                String       @default("[]")
+  interviewPrepTopics      String       @default("[]")
+  workArrangement          String       @default("unknown")
+  employmentType           String       @default("unknown")
+  seniorityLevel           String       @default("unknown")
+  reportingLine            String?
+  resumePositioning        String?
+  summary                  String?
+  analysisMethod           String       @default("heuristic")
+  model                    String?
+  createdAt                DateTime     @default(now())
+
+  @@index([candidateJobId, createdAt])
+}
+
+model JobSearchProfile {
+  id                       String   @id @default(cuid())
+  userId                   String   @unique
+  user                     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  targetRoles              String   @default("[]")
+  strongTechnologies       String   @default("[]")
+  secondaryTechnologies    String   @default("[]")
+  learningTechnologies     String   @default("[]")
+  avoidTerms               String   @default("[]")
+  preferredWorkArrangement String   @default("remote_or_hybrid")
+  preferredEmploymentType  String   @default("full_time")
+  salaryFloor              Int?
+  preferredLocation        String?
+  recruiterTolerance       String   @default("neutral")
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+}
+
 model CompanyResearch {
   id                 String      @id @default(cuid())
   userId             String
@@ -214,4 +302,99 @@ model CompanyResearch {
   interviewPrepNotes String      @default("[]")
   sources            String      @default("[]")
   researchedAt       DateTime
+}
+
+model ResearchTask {
+  id                 String   @id @default(cuid())
+  companyName        String
+  candidateJobId     String?
+  applicationId      String?
+  taskType           String
+  budgetCategory     String   @default("baseline")
+  priority           Int      @default(0)
+  status             String   @default("queued")
+  reason             String?
+  prompt             String?
+  searchCostEstimate Int      @default(1)
+  attempts           Int      @default(0)
+  maxAttempts        Int      @default(2)
+  resultQualityScore Int?
+  scheduledFor       DateTime?
+  createdAt          DateTime @default(now())
+  startedAt          DateTime?
+  completedAt        DateTime?
+
+  @@index([status, priority])
+  @@index([companyName])
+  @@index([candidateJobId])
+  @@index([applicationId])
+  @@index([budgetCategory, status])
+}
+
+model CompanyProfile {
+  id                       String   @id @default(cuid())
+  companyName              String   @unique
+  officialWebsite          String?
+  summary                  String?
+  productCategory          String?
+  customerSegment          String?
+  companySize              String?
+  companyStage             String?
+  hiringSignalScore        Int?
+  riskScore                Int?
+  sourceQualityScore       Int?
+  profileCompletenessScore Int?
+  missingFields            String   @default("[]")
+  riskFlags                String   @default("[]")
+  keySources               String   @default("[]")
+  researchStatus           String   @default("not_started")
+  lastResearchedAt         DateTime?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@index([profileCompletenessScore])
+  @@index([researchStatus])
+}
+
+model AiUsageLog {
+  id              String   @id @default(cuid())
+  userId          String?
+  feature         String
+  provider        String
+  model           String
+  inputTokens     Int?
+  outputTokens    Int?
+  estimatedCost   Float?
+  searchEnabled   Boolean  @default(false)
+  searchQueries   Int?
+  candidateJobId  String?
+  applicationId   String?
+  emailEventId    String?
+  createdAt       DateTime @default(now())
+
+  @@index([feature, createdAt])
+  @@index([candidateJobId])
+  @@index([applicationId])
+}
+
+model AiBudgetLedger {
+  id              String   @id @default(cuid())
+  dateKey         String
+  provider        String
+  model           String
+  feature         String
+  budgetCategory  String
+  searchUsed      Boolean  @default(false)
+  searchRequests  Int      @default(0)
+  estimatedCost   Float?
+  researchTaskId  String?
+  candidateJobId  String?
+  applicationId   String?
+  createdAt       DateTime @default(now())
+
+  @@index([dateKey, provider, model])
+  @@index([budgetCategory, dateKey])
+  @@index([researchTaskId])
+  @@index([candidateJobId])
+  @@index([applicationId])
 }
