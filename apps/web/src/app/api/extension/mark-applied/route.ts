@@ -1,31 +1,40 @@
 import { NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
-import { MarkAppliedRequestSchema } from "@jobsignal/shared";
-import { analyzeJobFit, extractJobDescription } from "@/lib/ai/analyze-job";
 import { prisma } from "@/lib/prisma";
 
 const DEFAULT_USER_EMAIL = process.env.SINGLE_USER_EMAIL || "nathancwatkins23@gmail.com";
 const DEFAULT_USER_NAME = "Nathan Watkins";
 
+type MarkAppliedPayload = {
+  source?: string;
+  sourceJobId?: string;
+  jobUrl?: string;
+  companyName?: string;
+  roleTitle?: string;
+  location?: string;
+  workplaceType?: string;
+  employmentType?: string;
+  salaryText?: string | null;
+  salaryListed?: boolean;
+  rawDescription?: string;
+  applicationMethod?: string;
+  applicationSourceType?: string;
+  recruiterName?: string;
+  recruiterCompany?: string;
+  recruiterNotes?: string;
+  resumeLabel?: string;
+  notes?: string;
+  appliedAt?: string;
+};
+
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const parsed = MarkAppliedRequestSchema.safeParse(body);
-
-    if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
-    }
-
-    const input = parsed.data;
-    const extraction = await extractJobDescription(input);
-    const analysis = await analyzeJobFit({ rawDescription: input.rawDescription, extraction });
-
-    const companyName = firstNonEmpty(input.companyName, extraction.companyName, "Unknown Company");
-    const roleTitle = firstNonEmpty(input.roleTitle, extraction.roleTitle, "Unknown Role");
+    const input = (await request.json()) as MarkAppliedPayload;
+    const companyName = clean(input.companyName) || "Unknown Company";
+    const roleTitle = clean(input.roleTitle) || "Unknown Role";
     const appliedAt = input.appliedAt ? new Date(input.appliedAt) : new Date();
-    const salaryText = input.salaryText || extraction.salaryText || null;
-    const salaryListed = Boolean(input.salaryListed || extraction.salaryListed || salaryText);
-    const applicationSourceType = input.applicationSourceType || "unknown";
+    const salaryText = clean(input.salaryText || undefined) || null;
+    const salaryListed = Boolean(input.salaryListed || salaryText);
 
     const result = await prisma.$transaction(async (tx) => {
       const user = await tx.user.upsert({
@@ -33,10 +42,6 @@ export async function POST(request: Request) {
         update: { name: DEFAULT_USER_NAME },
         create: { email: DEFAULT_USER_EMAIL, name: DEFAULT_USER_NAME },
       });
-
-      const resumeVersion = input.resumeVersionId
-        ? await tx.resumeVersion.findFirst({ where: { id: input.resumeVersionId, userId: user.id } })
-        : null;
 
       const existingJobPosting = await findExistingJobPosting(tx, {
         userId: user.id,
@@ -47,57 +52,39 @@ export async function POST(request: Request) {
         roleTitle,
       });
 
+      const jobPostingData = {
+        companyName,
+        roleTitle,
+        canonicalCompanyName: normalize(companyName),
+        canonicalRoleTitle: normalize(roleTitle),
+        jobUrl: input.jobUrl,
+        source: input.source || "linkedin",
+        sourceJobId: input.sourceJobId,
+        rawDescription: input.rawDescription,
+        location: clean(input.location),
+        workplaceType: input.workplaceType || "unknown",
+        employmentType: input.employmentType || "unknown",
+        salaryText,
+        salaryListed,
+        redFlags: JSON.stringify(salaryListed ? [] : ["No salary listed"]),
+        extractedConfidence: 0.8,
+      };
+
       const jobPosting = existingJobPosting
         ? await tx.jobPosting.update({
             where: { id: existingJobPosting.id },
             data: {
-              companyName,
-              roleTitle,
-              canonicalCompanyName: normalize(companyName),
-              canonicalRoleTitle: normalize(roleTitle),
+              ...jobPostingData,
               jobUrl: input.jobUrl || existingJobPosting.jobUrl,
-              source: input.source || existingJobPosting.source,
-              sourceJobId: input.sourceJobId || existingJobPosting.sourceJobId,
               rawDescription: input.rawDescription || existingJobPosting.rawDescription,
-              location: input.location || extraction.location || existingJobPosting.location,
-              workplaceType: input.workplaceType || extraction.workplaceType || existingJobPosting.workplaceType,
-              employmentType: input.employmentType || extraction.employmentType || existingJobPosting.employmentType,
-              salaryText,
-              salaryListed,
-              seniorityLevel: extraction.seniorityLevel,
-              requiredSkills: JSON.stringify(extraction.requiredSkills),
-              niceToHaveSkills: JSON.stringify(extraction.niceToHaveSkills),
-              techStack: JSON.stringify(extraction.techStack),
-              responsibilities: JSON.stringify(extraction.responsibilities),
-              benefits: JSON.stringify(extraction.benefits),
-              redFlags: JSON.stringify(extraction.redFlags),
-              extractedConfidence: extraction.confidence,
+              location: clean(input.location) || existingJobPosting.location,
+              sourceJobId: input.sourceJobId || existingJobPosting.sourceJobId,
             },
           })
         : await tx.jobPosting.create({
             data: {
               userId: user.id,
-              companyName,
-              roleTitle,
-              canonicalCompanyName: normalize(companyName),
-              canonicalRoleTitle: normalize(roleTitle),
-              jobUrl: input.jobUrl,
-              source: input.source,
-              sourceJobId: input.sourceJobId,
-              rawDescription: input.rawDescription,
-              location: input.location || extraction.location || undefined,
-              workplaceType: input.workplaceType || extraction.workplaceType || "unknown",
-              employmentType: input.employmentType || extraction.employmentType || "unknown",
-              salaryText,
-              salaryListed,
-              seniorityLevel: extraction.seniorityLevel || undefined,
-              requiredSkills: JSON.stringify(extraction.requiredSkills),
-              niceToHaveSkills: JSON.stringify(extraction.niceToHaveSkills),
-              techStack: JSON.stringify(extraction.techStack),
-              responsibilities: JSON.stringify(extraction.responsibilities),
-              benefits: JSON.stringify(extraction.benefits),
-              redFlags: JSON.stringify(extraction.redFlags),
-              extractedConfidence: extraction.confidence,
+              ...jobPostingData,
             },
           });
 
@@ -105,24 +92,15 @@ export async function POST(request: Request) {
         where: { jobPostingId: jobPosting.id },
       });
 
-      const sourceNote = buildSourceNote({
-        applicationSourceType,
-        recruiterName: input.recruiterName,
-        recruiterCompany: input.recruiterCompany,
-        recruiterNotes: input.recruiterNotes,
-        resumeLabel: input.resumeLabel,
-        notes: input.notes,
-      });
-
+      const sourceNote = buildSourceNote(input);
       const application = existingApplication
         ? await tx.application.update({
             where: { id: existingApplication.id },
             data: {
               status: existingApplication.status === "rejected" ? existingApplication.status : "applied",
-              source: input.source,
-              applicationMethod: input.applicationMethod || "linkedin_easy_apply",
+              source: input.source || existingApplication.source || "linkedin",
+              applicationMethod: input.applicationMethod || existingApplication.applicationMethod || "linkedin_easy_apply",
               appliedAt: existingApplication.appliedAt || appliedAt,
-              resumeVersionId: resumeVersion?.id,
               notes: mergeNotes(existingApplication.notes, sourceNote),
             },
           })
@@ -131,10 +109,9 @@ export async function POST(request: Request) {
               userId: user.id,
               jobPostingId: jobPosting.id,
               status: "applied",
-              source: input.source,
+              source: input.source || "linkedin",
               applicationMethod: input.applicationMethod || "linkedin_easy_apply",
               appliedAt,
-              resumeVersionId: resumeVersion?.id,
               notes: sourceNote,
             },
           });
@@ -145,14 +122,14 @@ export async function POST(request: Request) {
           applicationId: application.id,
           type: existingApplication ? "manual_update" : "applied",
           title: existingApplication ? "Application re-confirmed from extension" : "Applied",
-          description: `Marked applied from ${input.source || "browser"}${input.jobUrl ? `: ${input.jobUrl}` : ""}`,
+          description: `Marked applied from ${input.source || "linkedin"}${input.jobUrl ? `: ${input.jobUrl}` : ""}`,
           metadata: JSON.stringify({
             source: input.source,
             sourceJobId: input.sourceJobId,
             jobUrl: input.jobUrl,
             salaryListed,
             salaryText,
-            applicationSourceType,
+            applicationSourceType: input.applicationSourceType,
             recruiterName: input.recruiterName,
             recruiterCompany: input.recruiterCompany,
             recruiterNotes: input.recruiterNotes,
@@ -162,62 +139,23 @@ export async function POST(request: Request) {
         },
       });
 
-      await tx.jobAnalysis.create({
-        data: {
-          userId: user.id,
-          jobPostingId: jobPosting.id,
-          fitScore: analysis.fitScore,
-          opportunityScore: analysis.opportunityScore,
-          roleFitScore: analysis.roleFitScore,
-          techStackFitScore: analysis.techStackFitScore,
-          compensationClarityScore: analysis.compensationClarityScore,
-          strongestMatches: JSON.stringify(analysis.strongestMatches),
-          possibleGaps: JSON.stringify(analysis.possibleGaps),
-          redFlags: JSON.stringify(analysis.redFlags),
-          resumeAngle: analysis.resumeAngle,
-          applicationStrategy: analysis.applicationStrategy,
-          questionsToAsk: JSON.stringify(analysis.questionsToAsk),
-          concerns: JSON.stringify(analysis.concerns),
-        },
-      });
-
-      return { user, jobPosting, application };
+      return { jobPosting, application };
     });
 
     return NextResponse.json({
+      ok: true,
       applicationId: result.application.id,
       jobPostingId: result.jobPosting.id,
       status: result.application.status,
       duplicateStatus: "checked",
-      analysisQueued: true,
+      analysisQueued: false,
       applicationUrl: `/applications/${result.application.id}`,
-      extraction,
-      analysis,
     });
   } catch (error) {
     console.error("[mark-applied] failed", error);
     const message = error instanceof Error ? error.message : "Unknown error";
-
-    return NextResponse.json(
-      {
-        error: "mark_applied_failed",
-        message,
-        hint: getErrorHint(message),
-      },
-      { status: 500 },
-    );
+    return NextResponse.json({ ok: false, error: "mark_applied_failed", message, hint: getErrorHint(message) }, { status: 500 });
   }
-}
-
-function getErrorHint(message: string) {
-  const lower = message.toLowerCase();
-  if (lower.includes("no such column") || lower.includes("no such table") || lower.includes("does not exist")) {
-    return "Your local Prisma database is behind the schema. Run: pnpm db:generate && pnpm db:migrate, then restart pnpm dev.";
-  }
-  if (lower.includes("prisma client") || lower.includes("unknown arg")) {
-    return "Your generated Prisma client is stale. Run: pnpm db:generate, then restart pnpm dev.";
-  }
-  return "Check the terminal running pnpm dev for the full backend stack trace.";
 }
 
 async function findExistingJobPosting(
@@ -252,25 +190,23 @@ async function findExistingJobPosting(
   });
 }
 
-function buildSourceNote(input: {
-  applicationSourceType?: string;
-  recruiterName?: string;
-  recruiterCompany?: string;
-  recruiterNotes?: string;
-  resumeLabel?: string;
-  notes?: string;
-}) {
+function getErrorHint(message: string) {
+  const lower = message.toLowerCase();
+  if (lower.includes("database_url")) return "Create apps/web/.env with DATABASE_URL=\"file:./dev.db\".";
+  if (lower.includes("no such column") || lower.includes("no such table") || lower.includes("does not exist")) return "Run pnpm db:migrate and restart pnpm dev.";
+  if (lower.includes("prisma client") || lower.includes("unknown arg")) return "Run pnpm db:generate and restart pnpm dev.";
+  return "Check the terminal running pnpm dev for the full backend stack trace.";
+}
+
+function buildSourceNote(input: MarkAppliedPayload) {
   const lines = [
-    input.notes?.trim(),
+    clean(input.notes),
     input.resumeLabel ? `Resume used: ${input.resumeLabel}` : undefined,
-    input.applicationSourceType && input.applicationSourceType !== "unknown"
-      ? `Application source: ${input.applicationSourceType}`
-      : undefined,
+    input.applicationSourceType && input.applicationSourceType !== "unknown" ? `Application source: ${input.applicationSourceType}` : undefined,
     input.recruiterName ? `Recruiter: ${input.recruiterName}` : undefined,
     input.recruiterCompany ? `Recruiter firm: ${input.recruiterCompany}` : undefined,
     input.recruiterNotes ? `Recruiter notes: ${input.recruiterNotes}` : undefined,
   ].filter(Boolean);
-
   return lines.join("\n");
 }
 
@@ -281,8 +217,8 @@ function mergeNotes(existingNotes: string | null | undefined, newNotes: string) 
   return `${existingNotes}\n\n${newNotes}`;
 }
 
-function firstNonEmpty(...values: Array<string | null | undefined>) {
-  return values.find((value) => value && value.trim().length > 0)?.trim() || "";
+function clean(value?: string | null) {
+  return value?.replace(/\s+/g, " ").trim() || undefined;
 }
 
 function normalize(value: string) {
