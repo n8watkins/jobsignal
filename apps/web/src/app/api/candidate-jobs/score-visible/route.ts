@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { scoreCandidateJob } from "@/lib/candidate-jobs/scorer";
+import { scoreCandidateJob, type CandidateJobInput } from "@/lib/candidate-jobs/scorer";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -12,10 +12,10 @@ export async function OPTIONS() {
 }
 
 export async function POST(request: Request) {
-  const body = await request.json();
-  const jobs = Array.isArray(body.jobs) ? body.jobs : [];
+  const body = (await request.json()) as { jobs?: CandidateJobInput[] };
+  const jobs: CandidateJobInput[] = Array.isArray(body.jobs) ? body.jobs : [];
 
-  const scoredJobs = jobs.map((job) => ({
+  const scoredJobs = jobs.map((job: CandidateJobInput) => ({
     ...job,
     ...scoreCandidateJob(job),
   }));
