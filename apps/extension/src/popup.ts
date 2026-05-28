@@ -1,3 +1,4 @@
+import { getApiBase } from "./api";
 import type { CapturedJob } from "./types";
 
 let currentJob: CapturedJob | null = null;
@@ -95,8 +96,7 @@ async function confirmApplied() {
   debug.textContent = JSON.stringify(response.data, null, 2);
 
   if (response.data?.applicationUrl) {
-    const apiBase = await chrome.storage.sync.get(["apiBase"]);
-    const base = apiBase.apiBase || "http://localhost:3000";
+    const base = await getApiBase();
     openApplication.href = `${base}${response.data.applicationUrl}`;
     openApplication.classList.remove("hidden");
   }
