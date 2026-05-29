@@ -1,5 +1,6 @@
 import { DEFAULT_JOB_SEARCH_PROFILE } from "@/lib/profile/default-profile";
 import type { JobSearchProfileValues } from "@/lib/profile/profile-utils";
+import { aliasesForTech } from "@/lib/tech/registry";
 
 export type CandidateJobInput = {
   source?: string;
@@ -25,39 +26,6 @@ export type CandidateJobScore = {
   emphasisAreas: string[];
 };
 
-// ─── Tech alias dictionary ────────────────────────────────────────────────────
-// The profile stores canonical tech names ("Next.js"); job text uses many
-// spellings. This maps a canonical name to the substrings worth searching for.
-// Techs absent from the dictionary fall back to their own lowercased name.
-
-const TECH_ALIASES: Record<string, string[]> = {
-  React: ["react", "react.js", "reactjs"],
-  "Next.js": ["next.js", "nextjs", "app router", "server components"],
-  TypeScript: ["typescript", "type-safe", "type safe"],
-  JavaScript: ["javascript"],
-  Tailwind: ["tailwind", "tailwind css"],
-  Firebase: ["firebase", "firestore"],
-  GraphQL: ["graphql"],
-  Apollo: ["apollo", "apollo client"],
-  Zustand: ["zustand"],
-  Redux: ["redux", "redux toolkit"],
-  Vitest: ["vitest"],
-  Jest: ["jest"],
-  "Testing Library": ["testing library", "react testing library"],
-  "Node.js": ["node.js", "nodejs"],
-  pnpm: ["pnpm"],
-  Turbo: ["turbo", "turborepo"],
-  Radix: ["radix", "radix ui"],
-  "Web Vitals": ["web vitals", "core web vitals"],
-  Prisma: ["prisma"],
-  PostgreSQL: ["postgresql", "postgres"],
-  "GraphQL Code Generator": ["graphql code generator", "graphql-codegen", "codegen"],
-  AWS: ["aws", "amazon web services"],
-  Vercel: ["vercel"],
-  Cloudflare: ["cloudflare", "cloudflare workers"],
-  "pnpm workspaces": ["pnpm workspaces", "pnpm workspace"],
-};
-
 // Generic role/JD words that get trimmed off the edges of a phrase so it
 // matches on the distinctive part ("Frontend Engineer" -> "frontend").
 const ROLE_STOPWORDS = new Set([
@@ -74,12 +42,6 @@ type ScoringTerms = {
 };
 
 const termsCache = new WeakMap<JobSearchProfileValues, ScoringTerms>();
-
-function aliasesFor(tech: string): string[] {
-  const match = Object.keys(TECH_ALIASES).find((key) => key.toLowerCase() === tech.toLowerCase());
-  const extra = match ? TECH_ALIASES[match] : [];
-  return unique([tech.toLowerCase(), ...extra.map((a) => a.toLowerCase())]);
-}
 
 // Yields the full phrase plus a "core" with generic role-nouns trimmed off the
 // ends, kept as one contiguous phrase so "Frontend Engineer" -> "frontend" and
@@ -119,8 +81,8 @@ export function buildScoringTerms(profile: JobSearchProfileValues = DEFAULT_JOB_
       ...profile.strongTechnologies.map((t) => t.toLowerCase()),
     ]),
     cautionTerms: expandPhrases(profile.avoidTerms),
-    strongTech: profile.strongTechnologies.map((label) => ({ label, aliases: aliasesFor(label) })),
-    detectTech: techNames.map((label) => ({ label, aliases: aliasesFor(label) })),
+    strongTech: profile.strongTechnologies.map((label) => ({ label, aliases: aliasesForTech(label) })),
+    detectTech: techNames.map((label) => ({ label, aliases: aliasesForTech(label) })),
   };
 
   termsCache.set(profile, terms);
@@ -217,6 +179,16 @@ export function scoreCandidateJob(
     riskFlags.push(`Potential mismatch: ${term}`);
   }
 
+  const loc = scoreLocation(input.location, profile.preferredLocation, workArrangement);
+  score += loc.delta;
+  if (loc.reason) scoreReasons.push(loc.reason);
+  if (loc.flag) riskFlags.push(loc.flag);
+
+  const rec = scoreRecruiterFit(text, profile.recruiterTolerance);
+  score += rec.delta;
+  if (rec.reason) scoreReasons.push(rec.reason);
+  if (rec.flag) riskFlags.push(rec.flag);
+
   const emphasisAreas = detectEmphasisAreas(text);
   score = Math.max(0, Math.min(100, score));
 
@@ -274,6 +246,51 @@ function extractMaxSalary(salaryText: string | null | undefined, text: string): 
     if (!Number.isNaN(n)) figures.push(n);
   }
   return figures.length ? Math.max(...figures) : null;
+}
+
+// Nudges based on the user's preferred location. Only applies when the
+// preference names an actual city and the role isn't remote (remote already
+// satisfies location and is rewarded by scoreWorkArrangement). A location-less
+// listing is left neutral rather than guessed at.
+function scoreLocation(
+  jobLocation: string | undefined,
+  preferredLocation: string | null,
+  workArrangement: CandidateJobScore["workArrangement"],
+): { delta: number; reason?: string; flag?: string } {
+  if (!preferredLocation || workArrangement === "remote") return { delta: 0 };
+  const cityTokens = preferredLocation
+    .toLowerCase()
+    .split(/[\/,;|]/)
+    .map((t) => t.trim())
+    .filter((t) => t && t !== "remote" && t.length >= 3);
+  if (cityTokens.length === 0) return { delta: 0 };
+
+  const loc = (jobLocation || "").toLowerCase();
+  if (!loc) return { delta: 0 };
+  if (cityTokens.some((token) => loc.includes(token))) return { delta: 5, reason: "Preferred location" };
+  if (workArrangement === "onsite" || workArrangement === "hybrid") {
+    return { delta: -6, flag: "Outside preferred location" };
+  }
+  return { delta: 0 };
+}
+
+const AGENCY_TERMS = [
+  "staffing", "staffing agency", "recruitment agency", "recruiting agency",
+  "our client", "on behalf of our client", "consultancy", "third-party", "third party",
+  "corp to corp", "corp-to-corp", "c2c",
+];
+
+// Adjusts for agency/third-party recruiter listings according to the user's
+// stated tolerance. No signal in the text means no adjustment.
+function scoreRecruiterFit(
+  text: string,
+  tolerance: string,
+): { delta: number; reason?: string; flag?: string } {
+  const isAgency = AGENCY_TERMS.some((term) => text.includes(term));
+  if (!isAgency) return { delta: 0 };
+  if (tolerance === "open") return { delta: 0, reason: "Agency/recruiter role (you're open to these)" };
+  if (tolerance === "skeptical") return { delta: -12, flag: "Agency/recruiter role (you're skeptical of these)" };
+  return { delta: -5, flag: "Agency/recruiter role" };
 }
 
 function detectEmploymentType(text: string): CandidateJobScore["employmentType"] {

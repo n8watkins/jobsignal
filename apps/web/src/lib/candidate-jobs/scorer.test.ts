@@ -126,6 +126,45 @@ describe("scoreCandidateJob — signal handling", () => {
     expect(result.riskFlags).not.toContain("Below salary floor ($0)");
   });
 
+  it("rewards a preferred-location on-site role and flags one outside it", () => {
+    const inLA = scoreCandidateJob(
+      { roleTitle: "Frontend Engineer", location: "Los Angeles, CA", salaryText: "$150k", rawCardText: "On-site React role." },
+      profile({ preferredLocation: "Los Angeles / Remote" }),
+    );
+    const inSF = scoreCandidateJob(
+      { roleTitle: "Frontend Engineer", location: "San Francisco, CA", salaryText: "$150k", rawCardText: "On-site React role." },
+      profile({ preferredLocation: "Los Angeles / Remote" }),
+    );
+    expect(inLA.scoreReasons).toContain("Preferred location");
+    expect(inSF.riskFlags).toContain("Outside preferred location");
+    expect(inLA.fitScore).toBeGreaterThan(inSF.fitScore);
+  });
+
+  it("does not apply a location penalty to remote roles", () => {
+    const result = scoreCandidateJob(
+      { roleTitle: "Frontend Engineer", location: "Anywhere", salaryText: "$150k", rawCardText: "Fully remote React role." },
+      profile({ preferredLocation: "Los Angeles / Remote" }),
+    );
+    expect(result.riskFlags).not.toContain("Outside preferred location");
+  });
+
+  it("scores agency/recruiter listings by the user's tolerance", () => {
+    const job = { roleTitle: "Frontend Engineer", salaryText: "$150k", rawCardText: "Remote. Staffing agency hiring on behalf of our client." };
+    const open = scoreCandidateJob(job, profile({ recruiterTolerance: "open" }));
+    const skeptical = scoreCandidateJob(job, profile({ recruiterTolerance: "skeptical" }));
+    expect(open.riskFlags).not.toContain("Agency/recruiter role (you're skeptical of these)");
+    expect(skeptical.riskFlags.some((f) => f.toLowerCase().includes("skeptical"))).toBe(true);
+    expect(open.fitScore).toBeGreaterThan(skeptical.fitScore);
+  });
+
+  it("leaves recruiter score untouched without an agency signal", () => {
+    const result = scoreCandidateJob(
+      { roleTitle: "Frontend Engineer", salaryText: "$150k", rawCardText: "Remote. Join our product engineering team." },
+      profile({ recruiterTolerance: "skeptical" }),
+    );
+    expect(result.riskFlags.some((f) => f.toLowerCase().includes("agency"))).toBe(false);
+  });
+
   it("flags missing pay and labels a clean frontend role Strong", () => {
     const strong = scoreCandidateJob(
       {
