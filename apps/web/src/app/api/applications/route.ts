@@ -5,6 +5,7 @@ import { extractJobDescription, analyzeJobFit } from "@/lib/ai/analyze-job";
 import { queueBaselineResearchForApplication } from "@/lib/research/queue";
 import { normalizeText } from "@/lib/utils";
 import { getCurrentUser } from "@/lib/auth/current-user";
+import { getDefaultResumeText } from "@/lib/resume/default-resume";
 
 export async function GET() {
   const user = await getCurrentUser();
@@ -35,9 +36,11 @@ export async function POST(request: Request) {
   }
 
   const extraction = await extractJobDescription(parsed.data);
-  const analysis = await analyzeJobFit({ rawDescription: parsed.data.rawDescription, extraction });
 
   const user = await getCurrentUser();
+  const resumeText = (await getDefaultResumeText(user.id)) || undefined;
+  const analysis = await analyzeJobFit({ rawDescription: parsed.data.rawDescription, resumeText, extraction });
+
   const appliedAt = new Date();
   const companyName = parsed.data.companyName || extraction.companyName || "Unknown Company";
   const roleTitle = parsed.data.roleTitle || extraction.roleTitle || "Unknown Role";
