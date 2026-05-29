@@ -60,19 +60,12 @@ export function ProfileForm({ initialProfile }: { initialProfile: JobSearchProfi
     setSaving(true);
     setError(null);
     try {
-      // Convert textarea strings (one per line) back to arrays for list fields
-      const body = {
-        ...draft,
-        targetRoles: listOrString(draft.targetRoles),
-        strongTechnologies: listOrString(draft.strongTechnologies),
-        secondaryTechnologies: listOrString(draft.secondaryTechnologies),
-        learningTechnologies: listOrString(draft.learningTechnologies),
-        avoidTerms: listOrString(draft.avoidTerms),
-      };
+      // List fields may be newline strings (edited) or arrays (untouched);
+      // the API's stringifyList accepts both, so draft can post as-is.
       const res = await fetch("/api/profile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify(draft),
       });
       if (!res.ok) throw new Error("Save failed");
       const data = await res.json();
@@ -255,8 +248,4 @@ function Meta({ label, value }: { label: string; value: string }) {
       <span>{value}</span>
     </div>
   );
-}
-
-function listOrString(val: string | string[]): string | string[] {
-  return val;
 }

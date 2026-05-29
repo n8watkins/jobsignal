@@ -91,6 +91,41 @@ describe("scoreCandidateJob — signal handling", () => {
     expect(result.detectedTechnologies).toContain("React");
   });
 
+  it("respects an onsite-ok preference instead of penalizing on-site", () => {
+    const job = { roleTitle: "Frontend Engineer", salaryText: "$150k", rawCardText: "Onsite React role in NYC." };
+    const strict = scoreCandidateJob(job, profile({ preferredWorkArrangement: "remote_or_hybrid" }));
+    const okWithOnsite = scoreCandidateJob(job, profile({ preferredWorkArrangement: "onsite_ok" }));
+    expect(strict.riskFlags).toContain("On-site role");
+    expect(okWithOnsite.riskFlags).not.toContain("On-site role");
+    expect(okWithOnsite.fitScore).toBeGreaterThan(strict.fitScore);
+  });
+
+  it("flags hybrid for a remote-only candidate", () => {
+    const result = scoreCandidateJob(
+      { roleTitle: "Frontend Engineer", salaryText: "$150k", rawCardText: "Hybrid React role." },
+      profile({ preferredWorkArrangement: "remote_only" }),
+    );
+    expect(result.riskFlags.some((f) => f.toLowerCase().includes("hybrid"))).toBe(true);
+  });
+
+  it("grades listed pay against the salary floor", () => {
+    const job = (salaryText: string) => ({ roleTitle: "Frontend Engineer", salaryText, rawCardText: "Remote React role." });
+    const below = scoreCandidateJob(job("$80,000"), profile({ salaryFloor: 100000 }));
+    const above = scoreCandidateJob(job("$160,000-$200,000"), profile({ salaryFloor: 100000 }));
+    expect(below.riskFlags).toContain("Below salary floor ($100,000)");
+    expect(above.scoreReasons).toContain("Pay meets floor");
+    expect(above.fitScore).toBeGreaterThan(below.fitScore);
+  });
+
+  it("treats pay as merely listed when no floor is set", () => {
+    const result = scoreCandidateJob(
+      { roleTitle: "Frontend Engineer", salaryText: "$80,000", rawCardText: "Remote React role." },
+      profile({ salaryFloor: null as unknown as number }),
+    );
+    expect(result.scoreReasons).toContain("Pay listed");
+    expect(result.riskFlags).not.toContain("Below salary floor ($0)");
+  });
+
   it("flags missing pay and labels a clean frontend role Strong", () => {
     const strong = scoreCandidateJob(
       {

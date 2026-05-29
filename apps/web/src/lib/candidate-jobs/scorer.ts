@@ -148,24 +148,28 @@ export function scoreCandidateJob(
   }
 
   const workArrangement = detectWorkArrangement(text);
-  if (workArrangement === "remote") {
-    score += 15;
-    scoreReasons.push("Remote role");
-  } else if (workArrangement === "hybrid") {
-    score += 4;
-    scoreReasons.push("Hybrid role");
-  } else if (workArrangement === "onsite") {
-    score -= 15;
-    riskFlags.push("On-site role");
-  }
+  const wa = scoreWorkArrangement(workArrangement, profile.preferredWorkArrangement);
+  score += wa.delta;
+  if (wa.reason) scoreReasons.push(wa.reason);
+  if (wa.flag) riskFlags.push(wa.flag);
 
   const salaryListed = Boolean(input.salaryText) || /\$\s?\d{2,3}(?:,\d{3}|k)?/i.test(text);
-  if (salaryListed) {
-    score += 10;
-    scoreReasons.push("Pay listed");
-  } else {
+  if (!salaryListed) {
     score -= 8;
     riskFlags.push("No visible pay");
+  } else {
+    const maxPay = extractMaxSalary(input.salaryText, text);
+    const floor = profile.salaryFloor;
+    if (floor && maxPay !== null && maxPay < floor) {
+      score -= 10;
+      riskFlags.push(`Below salary floor ($${floor.toLocaleString()})`);
+    } else if (floor && maxPay !== null) {
+      score += 10;
+      scoreReasons.push("Pay meets floor");
+    } else {
+      score += 10;
+      scoreReasons.push("Pay listed");
+    }
   }
 
   if (text.includes("easy apply")) {
@@ -231,6 +235,45 @@ function detectWorkArrangement(text: string): CandidateJobScore["workArrangement
   if (text.includes("hybrid")) return "hybrid";
   if (text.includes("onsite") || text.includes("on-site")) return "onsite";
   return "unknown";
+}
+
+// Scores the detected arrangement against the user's stated preference, so an
+// "Onsite OK" candidate isn't penalized for on-site roles and a "remote only"
+// candidate is steered away from hybrid/on-site.
+function scoreWorkArrangement(
+  arrangement: CandidateJobScore["workArrangement"],
+  preference: string,
+): { delta: number; reason?: string; flag?: string } {
+  switch (arrangement) {
+    case "remote":
+      return { delta: 15, reason: "Remote role" };
+    case "hybrid":
+      if (preference === "remote_only") return { delta: -5, flag: "Hybrid (you prefer remote-only)" };
+      return { delta: 4, reason: "Hybrid role" };
+    case "onsite":
+      if (preference === "onsite_ok") return { delta: 0, reason: "On-site (acceptable)" };
+      if (preference === "remote_only") return { delta: -20, flag: "On-site (you prefer remote-only)" };
+      return { delta: -15, flag: "On-site role" };
+    default:
+      return { delta: 0 };
+  }
+}
+
+// Largest annual figure we can read from the pay text, normalized to dollars.
+// Only counts comma-grouped ($120,000) or k-suffixed (120k) numbers so stray
+// small dollar amounts aren't mistaken for salaries. Returns null if none.
+function extractMaxSalary(salaryText: string | null | undefined, text: string): number | null {
+  const source = `${salaryText || ""} ${text}`;
+  const figures: number[] = [];
+  for (const m of source.matchAll(/\$\s?(\d{1,3}(?:,\d{3})+)/g)) {
+    const n = parseInt(m[1].replace(/,/g, ""), 10);
+    if (!Number.isNaN(n)) figures.push(n);
+  }
+  for (const m of source.matchAll(/(\d{2,3})\s*[kK]\b/g)) {
+    const n = parseInt(m[1], 10) * 1000;
+    if (!Number.isNaN(n)) figures.push(n);
+  }
+  return figures.length ? Math.max(...figures) : null;
 }
 
 function detectEmploymentType(text: string): CandidateJobScore["employmentType"] {
