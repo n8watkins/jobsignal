@@ -7,11 +7,26 @@ export async function getApiBase() {
   return stored.apiBase || DEFAULT_API_BASE;
 }
 
+export async function getExtensionConfig() {
+  const stored = await chrome.storage.sync.get(["apiBase", "sharedSecret"]);
+  return {
+    apiBase: (stored.apiBase as string) || DEFAULT_API_BASE,
+    sharedSecret: stored.sharedSecret as string | undefined,
+  };
+}
+
+// JSON headers plus the optional shared secret the API gate checks when set.
+export function buildHeaders(sharedSecret?: string): Record<string, string> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (sharedSecret) headers["x-extension-secret"] = sharedSecret;
+  return headers;
+}
+
 export async function markApplied(job: CapturedJob) {
-  const apiBase = await getApiBase();
+  const { apiBase, sharedSecret } = await getExtensionConfig();
   const response = await fetch(`${apiBase}/api/extension/mark-applied`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: buildHeaders(sharedSecret),
     body: JSON.stringify({ ...job, appliedAt: new Date().toISOString() }),
   });
 

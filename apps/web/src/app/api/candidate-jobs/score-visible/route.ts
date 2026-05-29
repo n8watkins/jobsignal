@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { scoreCandidateJob, type CandidateJobInput } from "@/lib/candidate-jobs/scorer";
 import { getScoringProfile } from "@/lib/profile/get-profile";
+import { checkExtensionSecret } from "@/lib/auth/extension-auth";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Allow-Headers": "Content-Type, x-extension-secret",
 };
 
 export async function OPTIONS() {
@@ -13,6 +14,9 @@ export async function OPTIONS() {
 }
 
 export async function POST(request: Request) {
+  if (!checkExtensionSecret(request)) {
+    return withCors(NextResponse.json({ error: "unauthorized" }, { status: 401 }));
+  }
   const body = (await request.json()) as { jobs?: CandidateJobInput[] };
   const jobs: CandidateJobInput[] = Array.isArray(body.jobs) ? body.jobs : [];
 

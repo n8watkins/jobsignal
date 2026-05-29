@@ -4,12 +4,10 @@ import { CapturedJobSchema } from "@jobsignal/shared";
 import { extractJobDescription, analyzeJobFit } from "@/lib/ai/analyze-job";
 import { queueBaselineResearchForApplication } from "@/lib/research/queue";
 import { normalizeText } from "@/lib/utils";
-
-const DEFAULT_USER_EMAIL = process.env.SINGLE_USER_EMAIL || "nathancwatkins23@gmail.com";
-const DEFAULT_USER_NAME = "Nathan Watkins";
+import { getCurrentUser } from "@/lib/auth/current-user";
 
 export async function GET() {
-  const user = await getUser();
+  const user = await getCurrentUser();
   const applications = await prisma.application.findMany({
     where: { userId: user.id },
     orderBy: [{ appliedAt: "desc" }, { createdAt: "desc" }],
@@ -39,7 +37,7 @@ export async function POST(request: Request) {
   const extraction = await extractJobDescription(parsed.data);
   const analysis = await analyzeJobFit({ rawDescription: parsed.data.rawDescription, extraction });
 
-  const user = await getUser();
+  const user = await getCurrentUser();
   const appliedAt = new Date();
   const companyName = parsed.data.companyName || extraction.companyName || "Unknown Company";
   const roleTitle = parsed.data.roleTitle || extraction.roleTitle || "Unknown Role";
@@ -125,14 +123,6 @@ export async function POST(request: Request) {
     ok: true,
     applicationId: result.application.id,
     applicationUrl: `/applications/${result.application.id}`,
-  });
-}
-
-async function getUser() {
-  return prisma.user.upsert({
-    where: { email: DEFAULT_USER_EMAIL },
-    update: { name: DEFAULT_USER_NAME },
-    create: { email: DEFAULT_USER_EMAIL, name: DEFAULT_USER_NAME },
   });
 }
 

@@ -2,14 +2,13 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { scoreCandidateJob } from "@/lib/candidate-jobs/scorer";
 import { getScoringProfile } from "@/lib/profile/get-profile";
-
-const DEFAULT_USER_EMAIL = process.env.SINGLE_USER_EMAIL || "nathancwatkins23@gmail.com";
-const DEFAULT_USER_NAME = "Nathan Watkins";
+import { getCurrentUser } from "@/lib/auth/current-user";
+import { checkExtensionSecret } from "@/lib/auth/extension-auth";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Allow-Headers": "Content-Type, x-extension-secret",
 };
 
 export async function OPTIONS() {
@@ -17,7 +16,7 @@ export async function OPTIONS() {
 }
 
 export async function GET() {
-  const user = await getUser();
+  const user = await getCurrentUser();
   const candidateJobs = await prisma.candidateJob.findMany({
     where: { userId: user.id },
     orderBy: [{ fitScore: "desc" }, { createdAt: "desc" }],
@@ -26,8 +25,11 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  if (!checkExtensionSecret(request)) {
+    return withCors(NextResponse.json({ error: "unauthorized" }, { status: 401 }));
+  }
   const input = await request.json();
-  const user = await getUser();
+  const user = await getCurrentUser();
   const profile = await getScoringProfile(user.id);
   const score = scoreCandidateJob(input, profile);
   const existing = await findExistingCandidateJob(user.id, input);
@@ -58,14 +60,6 @@ export async function POST(request: Request) {
     : await prisma.candidateJob.create({ data: { userId: user.id, ...data } });
 
   return withCors(NextResponse.json({ candidateJob }));
-}
-
-async function getUser() {
-  return prisma.user.upsert({
-    where: { email: DEFAULT_USER_EMAIL },
-    update: { name: DEFAULT_USER_NAME },
-    create: { email: DEFAULT_USER_EMAIL, name: DEFAULT_USER_NAME },
-  });
 }
 
 async function findExistingCandidateJob(userId: string, input: any) {

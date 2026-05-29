@@ -2,19 +2,17 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { DEFAULT_JOB_SEARCH_PROFILE } from "@/lib/profile/default-profile";
 import { profileRecordToValues, stringifyList } from "@/lib/profile/profile-utils";
-
-const DEFAULT_USER_EMAIL = process.env.SINGLE_USER_EMAIL || "nathancwatkins23@gmail.com";
-const DEFAULT_USER_NAME = "Nathan Watkins";
+import { getCurrentUser } from "@/lib/auth/current-user";
 
 export async function GET() {
-  const user = await getUser();
+  const user = await getCurrentUser();
   const record = await prisma.jobSearchProfile.findUnique({ where: { userId: user.id } });
   return NextResponse.json({ profile: profileRecordToValues(record) });
 }
 
 export async function POST(request: Request) {
   const body = await request.json();
-  const user = await getUser();
+  const user = await getCurrentUser();
   const profile = await prisma.jobSearchProfile.upsert({
     where: { userId: user.id },
     update: {
@@ -44,12 +42,4 @@ export async function POST(request: Request) {
     },
   });
   return NextResponse.json({ profile: profileRecordToValues(profile) });
-}
-
-async function getUser() {
-  return prisma.user.upsert({
-    where: { email: DEFAULT_USER_EMAIL },
-    update: { name: DEFAULT_USER_NAME },
-    create: { email: DEFAULT_USER_EMAIL, name: DEFAULT_USER_NAME },
-  });
 }

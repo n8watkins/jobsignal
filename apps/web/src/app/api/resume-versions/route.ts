@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-
-const DEFAULT_USER_EMAIL = process.env.SINGLE_USER_EMAIL || "nathancwatkins23@gmail.com";
-const DEFAULT_USER_NAME = "Nathan Watkins";
+import { getCurrentUser } from "@/lib/auth/current-user";
 
 const ResumeVersionRequestSchema = z.object({
   name: z.string().min(1, "Resume name is required"),
@@ -12,11 +10,7 @@ const ResumeVersionRequestSchema = z.object({
 });
 
 export async function GET() {
-  const user = await prisma.user.upsert({
-    where: { email: DEFAULT_USER_EMAIL },
-    update: { name: DEFAULT_USER_NAME },
-    create: { email: DEFAULT_USER_EMAIL, name: DEFAULT_USER_NAME },
-  });
+  const user = await getCurrentUser();
 
   const resumeVersions = await prisma.resumeVersion.findMany({
     where: { userId: user.id },
@@ -51,11 +45,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const user = await prisma.user.upsert({
-    where: { email: DEFAULT_USER_EMAIL },
-    update: { name: DEFAULT_USER_NAME },
-    create: { email: DEFAULT_USER_EMAIL, name: DEFAULT_USER_NAME },
-  });
+  const user = await getCurrentUser();
 
   const shouldSetDefault = parsed.data.isDefault || (await prisma.resumeVersion.count({ where: { userId: user.id } })) === 0;
 

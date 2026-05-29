@@ -2,14 +2,13 @@ import { NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { queueBaselineResearchForApplication } from "@/lib/research/queue";
-
-const DEFAULT_USER_EMAIL = process.env.SINGLE_USER_EMAIL || "nathancwatkins23@gmail.com";
-const DEFAULT_USER_NAME = "Nathan Watkins";
+import { getCurrentUser } from "@/lib/auth/current-user";
+import { checkExtensionSecret } from "@/lib/auth/extension-auth";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Allow-Headers": "Content-Type, x-extension-secret",
 };
 
 type MarkAppliedPayload = {
@@ -39,6 +38,9 @@ export async function OPTIONS() {
 }
 
 export async function POST(request: Request) {
+  if (!checkExtensionSecret(request)) {
+    return withCors(NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }));
+  }
   try {
     const input = (await request.json()) as MarkAppliedPayload;
     const companyName = clean(input.companyName) || "Unknown Company";
@@ -47,13 +49,9 @@ export async function POST(request: Request) {
     const salaryText = clean(input.salaryText || undefined) || null;
     const salaryListed = Boolean(input.salaryListed || salaryText);
 
-    const result = await prisma.$transaction(async (tx) => {
-      const user = await tx.user.upsert({
-        where: { email: DEFAULT_USER_EMAIL },
-        update: { name: DEFAULT_USER_NAME },
-        create: { email: DEFAULT_USER_EMAIL, name: DEFAULT_USER_NAME },
-      });
+    const user = await getCurrentUser();
 
+    const result = await prisma.$transaction(async (tx) => {
       const existingJobPosting = await findExistingJobPosting(tx, { userId: user.id, source: input.source, sourceJobId: input.sourceJobId, jobUrl: input.jobUrl, companyName, roleTitle });
 
       const jobPostingData = {

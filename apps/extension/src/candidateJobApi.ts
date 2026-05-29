@@ -1,11 +1,11 @@
-import { getApiBase } from "./api";
+import { getExtensionConfig, buildHeaders } from "./api";
 import type { LinkedInJobCard, ScoredLinkedInJobCard } from "./candidateJobTypes";
 
 export async function scoreVisibleCandidateJobs(jobs: LinkedInJobCard[]): Promise<ScoredLinkedInJobCard[]> {
-  const apiBase = await getApiBase();
+  const { apiBase, sharedSecret } = await getExtensionConfig();
   const response = await fetch(`${apiBase}/api/candidate-jobs/score-visible`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: buildHeaders(sharedSecret),
     body: JSON.stringify({ jobs }),
   });
   const text = await response.text();
@@ -15,10 +15,10 @@ export async function scoreVisibleCandidateJobs(jobs: LinkedInJobCard[]): Promis
 }
 
 export async function saveCandidateJob(job: LinkedInJobCard) {
-  const apiBase = await getApiBase();
+  const { apiBase, sharedSecret } = await getExtensionConfig();
   const response = await fetch(`${apiBase}/api/candidate-jobs`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: buildHeaders(sharedSecret),
     body: JSON.stringify(job),
   });
   const text = await response.text();

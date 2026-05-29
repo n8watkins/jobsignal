@@ -8,6 +8,19 @@ const status = $("status");
 const debug = $("debug");
 const openApplication = $<HTMLAnchorElement>("openApplication");
 
+async function loadSettings() {
+  const stored = await chrome.storage.sync.get(["apiBase", "sharedSecret"]);
+  ($<HTMLInputElement>("apiBase")).value = (stored.apiBase as string) || "";
+  ($<HTMLInputElement>("sharedSecret")).value = (stored.sharedSecret as string) || "";
+}
+
+async function saveSettings() {
+  const apiBase = ($<HTMLInputElement>("apiBase")).value.trim();
+  const sharedSecret = ($<HTMLInputElement>("sharedSecret")).value;
+  await chrome.storage.sync.set({ apiBase: apiBase || undefined, sharedSecret: sharedSecret || undefined });
+  status.textContent = "Connection settings saved.";
+}
+
 async function loadLastCaptured() {
   const stored = await chrome.storage.local.get(["lastCapturedJob", "captureReason"]);
   if (stored.lastCapturedJob) {
@@ -104,7 +117,9 @@ async function confirmApplied() {
 
 $("capture").addEventListener("click", () => captureCurrentPage().catch((error) => (status.textContent = error.message)));
 $("markApplied").addEventListener("click", () => confirmApplied().catch((error) => (status.textContent = error.message)));
+$("saveSettings").addEventListener("click", () => saveSettings().catch((error) => (status.textContent = error.message)));
 
+loadSettings().catch(() => undefined);
 loadInitialCapture().catch((error) => {
   status.textContent = error.message || "Could not capture current page. Try the Capture button.";
   loadLastCaptured().catch(() => undefined);
