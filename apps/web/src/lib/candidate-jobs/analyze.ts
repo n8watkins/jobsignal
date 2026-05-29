@@ -1,4 +1,6 @@
 import { scoreCandidateJob } from "./scorer";
+import { DEFAULT_JOB_SEARCH_PROFILE } from "@/lib/profile/default-profile";
+import type { JobSearchProfileValues } from "@/lib/profile/profile-utils";
 
 type CandidateJobLike = {
   companyName: string;
@@ -13,10 +15,15 @@ type CandidateJobLike = {
   riskFlags?: string | null;
 };
 
-const PROFILE_CORE_TECH = ["React", "Next.js", "TypeScript", "JavaScript", "Tailwind", "Firebase", "Node.js", "Prisma", "PostgreSQL", "GraphQL", "Apollo", "Zustand", "Redux"];
-const COMMON_GAPS = ["Vitest", "Testing Library", "GraphQL Code Generator", "Apollo cache management", "Turbo", "pnpm workspaces"];
+export function analyzeCandidateJobHeuristically(
+  job: CandidateJobLike,
+  profile: JobSearchProfileValues = DEFAULT_JOB_SEARCH_PROFILE,
+) {
+  // Tech the candidate already has counts as a "match"; gap tech (learning)
+  // surfaces as something to shore up. Both come from the editable profile.
+  const profileCoreTech = unique([...profile.strongTechnologies, ...profile.secondaryTechnologies]);
+  const commonGaps = profile.learningTechnologies;
 
-export function analyzeCandidateJobHeuristically(job: CandidateJobLike) {
   const text = [job.companyName, job.roleTitle, job.location, job.salaryText, job.rawCardText, job.rawDescription].filter(Boolean).join("\n");
   const baseScore = scoreCandidateJob({
     companyName: job.companyName,
@@ -25,13 +32,13 @@ export function analyzeCandidateJobHeuristically(job: CandidateJobLike) {
     salaryText: job.salaryText,
     rawCardText: job.rawCardText || undefined,
     rawDescription: job.rawDescription || undefined,
-  });
+  }, profile);
 
   const requiredTechnologies = unique([...parseList(job.requiredTechnologies), ...baseScore.detectedTechnologies]);
   const emphasisAreas = unique([...parseList(job.emphasisAreas), ...baseScore.emphasisAreas]);
   const riskFlags = unique([...parseList(job.riskFlags), ...baseScore.riskFlags]);
-  const matchedTechnologies = requiredTechnologies.filter((tech) => PROFILE_CORE_TECH.some((profileTech) => normalize(profileTech) === normalize(tech)));
-  const missingTechnologies = unique([...requiredTechnologies.filter((tech) => !matchedTechnologies.includes(tech)), ...COMMON_GAPS.filter((gap) => text.toLowerCase().includes(gap.toLowerCase()) && !matchedTechnologies.includes(gap))]);
+  const matchedTechnologies = requiredTechnologies.filter((tech) => profileCoreTech.some((profileTech) => normalize(profileTech) === normalize(tech)));
+  const missingTechnologies = unique([...requiredTechnologies.filter((tech) => !matchedTechnologies.includes(tech)), ...commonGaps.filter((gap) => text.toLowerCase().includes(gap.toLowerCase()) && !matchedTechnologies.includes(gap))]);
   const likelyDayToDay = inferLikelyDayToDay(text, requiredTechnologies, emphasisAreas);
   const seniorityLevel = inferSeniority(job.roleTitle, text);
 

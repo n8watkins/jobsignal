@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { scoreCandidateJob, type CandidateJobInput } from "@/lib/candidate-jobs/scorer";
+import { getScoringProfile } from "@/lib/profile/get-profile";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -15,9 +16,11 @@ export async function POST(request: Request) {
   const body = (await request.json()) as { jobs?: CandidateJobInput[] };
   const jobs: CandidateJobInput[] = Array.isArray(body.jobs) ? body.jobs : [];
 
+  // Fetch the profile once; scoreCandidateJob memoizes derived terms per profile.
+  const profile = await getScoringProfile();
   const scoredJobs = jobs.map((job: CandidateJobInput) => ({
     ...job,
-    ...scoreCandidateJob(job),
+    ...scoreCandidateJob(job, profile),
   }));
 
   return withCors(NextResponse.json({ jobs: scoredJobs }));

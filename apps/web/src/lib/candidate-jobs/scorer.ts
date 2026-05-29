@@ -1,3 +1,6 @@
+import { DEFAULT_JOB_SEARCH_PROFILE } from "@/lib/profile/default-profile";
+import type { JobSearchProfileValues } from "@/lib/profile/profile-utils";
+
 export type CandidateJobInput = {
   source?: string;
   sourceJobId?: string;
@@ -22,15 +25,18 @@ export type CandidateJobScore = {
   emphasisAreas: string[];
 };
 
-const TARGET_TERMS = ["frontend", "front end", "react", "next.js", "nextjs", "web engineer", "full stack", "full-stack", "typescript", "product engineer"];
-const CAUTION_TERMS = ["angular", "wordpress", "php", "onsite", "on-site", "clearance", "senior backend", "staffing"];
+// ─── Tech alias dictionary ────────────────────────────────────────────────────
+// The profile stores canonical tech names ("Next.js"); job text uses many
+// spellings. This maps a canonical name to the substrings worth searching for.
+// Techs absent from the dictionary fall back to their own lowercased name.
 
-const TECH: Record<string, string[]> = {
+const TECH_ALIASES: Record<string, string[]> = {
   React: ["react", "react.js", "reactjs"],
   "Next.js": ["next.js", "nextjs", "app router", "server components"],
   TypeScript: ["typescript", "type-safe", "type safe"],
   JavaScript: ["javascript"],
   Tailwind: ["tailwind", "tailwind css"],
+  Firebase: ["firebase", "firestore"],
   GraphQL: ["graphql"],
   Apollo: ["apollo", "apollo client"],
   Zustand: ["zustand"],
@@ -43,15 +49,97 @@ const TECH: Record<string, string[]> = {
   Turbo: ["turbo", "turborepo"],
   Radix: ["radix", "radix ui"],
   "Web Vitals": ["web vitals", "core web vitals"],
+  Prisma: ["prisma"],
+  PostgreSQL: ["postgresql", "postgres"],
+  "GraphQL Code Generator": ["graphql code generator", "graphql-codegen", "codegen"],
+  AWS: ["aws", "amazon web services"],
+  Vercel: ["vercel"],
+  Cloudflare: ["cloudflare", "cloudflare workers"],
+  "pnpm workspaces": ["pnpm workspaces", "pnpm workspace"],
 };
 
-export function scoreCandidateJob(input: CandidateJobInput): CandidateJobScore {
+// Generic role/JD words that get trimmed off the edges of a phrase so it
+// matches on the distinctive part ("Frontend Engineer" -> "frontend").
+const ROLE_STOPWORDS = new Set([
+  "engineer", "developer", "dev", "senior", "junior", "sr", "jr", "staff",
+  "lead", "principal", "mid", "level", "i", "ii", "iii", "the", "a", "of",
+  "and", "or", "to", "only", "required", "based", "experience", "role", "position",
+]);
+
+type ScoringTerms = {
+  targetTerms: string[];
+  cautionTerms: string[];
+  strongTech: { label: string; aliases: string[] }[];
+  detectTech: { label: string; aliases: string[] }[];
+};
+
+const termsCache = new WeakMap<JobSearchProfileValues, ScoringTerms>();
+
+function aliasesFor(tech: string): string[] {
+  const match = Object.keys(TECH_ALIASES).find((key) => key.toLowerCase() === tech.toLowerCase());
+  const extra = match ? TECH_ALIASES[match] : [];
+  return unique([tech.toLowerCase(), ...extra.map((a) => a.toLowerCase())]);
+}
+
+// Yields the full phrase plus a "core" with generic role-nouns trimmed off the
+// ends, kept as one contiguous phrase so "Frontend Engineer" -> "frontend" and
+// "Full Stack Engineer" -> "full stack" (never a bare "full" that hits
+// "full-time"). The core is dropped if too short to be distinctive.
+function expandPhrases(phrases: string[]): string[] {
+  const out: string[] = [];
+  for (const phrase of phrases) {
+    const lower = phrase.toLowerCase().trim();
+    if (!lower) continue;
+    out.push(lower);
+
+    const words = lower.split(/[\s/]+/);
+    let start = 0;
+    let end = words.length;
+    while (start < end && ROLE_STOPWORDS.has(words[start])) start++;
+    while (end > start && ROLE_STOPWORDS.has(words[end - 1])) end--;
+    const core = words.slice(start, end).join(" ");
+    if (core && core !== lower && core.length >= 3) out.push(core);
+  }
+  return unique(out);
+}
+
+export function buildScoringTerms(profile: JobSearchProfileValues = DEFAULT_JOB_SEARCH_PROFILE): ScoringTerms {
+  const cached = termsCache.get(profile);
+  if (cached) return cached;
+
+  const techNames = unique([
+    ...profile.strongTechnologies,
+    ...profile.secondaryTechnologies,
+    ...profile.learningTechnologies,
+  ]);
+
+  const terms: ScoringTerms = {
+    targetTerms: unique([
+      ...expandPhrases(profile.targetRoles),
+      ...profile.strongTechnologies.map((t) => t.toLowerCase()),
+    ]),
+    cautionTerms: expandPhrases(profile.avoidTerms),
+    strongTech: profile.strongTechnologies.map((label) => ({ label, aliases: aliasesFor(label) })),
+    detectTech: techNames.map((label) => ({ label, aliases: aliasesFor(label) })),
+  };
+
+  termsCache.set(profile, terms);
+  return terms;
+}
+
+// ─── Scoring ───────────────────────────────────────────────────────────────────
+
+export function scoreCandidateJob(
+  input: CandidateJobInput,
+  profile: JobSearchProfileValues = DEFAULT_JOB_SEARCH_PROFILE,
+): CandidateJobScore {
+  const terms = buildScoringTerms(profile);
   const text = normalize([input.roleTitle, input.companyName, input.location, input.salaryText || "", input.rawCardText, input.rawDescription].filter(Boolean).join(" "));
   let score = 50;
   const scoreReasons: string[] = [];
   const riskFlags: string[] = [];
 
-  if (TARGET_TERMS.some((term) => text.includes(term))) {
+  if (terms.targetTerms.some((term) => text.includes(term))) {
     score += 20;
     scoreReasons.push("Target role/title match");
   } else {
@@ -86,6 +174,7 @@ export function scoreCandidateJob(input: CandidateJobInput): CandidateJobScore {
   }
 
   const employmentType = detectEmploymentType(text);
+  const preferredEmployment = profile.preferredEmploymentType;
   if (employmentType === "full_time") {
     score += 5;
     scoreReasons.push("Full-time");
@@ -96,9 +185,14 @@ export function scoreCandidateJob(input: CandidateJobInput): CandidateJobScore {
     score -= 10;
     riskFlags.push("Part-time role");
   }
+  // Extra nudge when the role conflicts with a strict employment preference.
+  if (preferredEmployment === "full_time" && (employmentType === "contract" || employmentType === "part_time")) {
+    score -= 4;
+  }
 
-  const detectedTechnologies = extractTechnologies(text);
-  const strongHits = detectedTechnologies.filter((tech) => ["React", "Next.js", "TypeScript", "Tailwind", "Node.js"].includes(tech));
+  const detectedTechnologies = detectTechnologies(text, terms.detectTech);
+  const strongLabels = new Set(terms.strongTech.map((t) => t.label));
+  const strongHits = detectedTechnologies.filter((tech) => strongLabels.has(tech));
   if (strongHits.length >= 2) {
     score += 10;
     scoreReasons.push(`Strong tech overlap: ${strongHits.slice(0, 3).join(", ")}`);
@@ -107,11 +201,16 @@ export function scoreCandidateJob(input: CandidateJobInput): CandidateJobScore {
     scoreReasons.push(`Some tech overlap: ${strongHits[0]}`);
   }
 
-  for (const term of CAUTION_TERMS) {
-    if (text.includes(term)) {
-      score -= 10;
-      riskFlags.push(`Potential mismatch: ${term}`);
-    }
+  // Drop a matched caution term when a longer matched term already contains it
+  // (e.g. "php wordpress" inside "php wordpress only") so one avoid phrase that
+  // expands to a full form plus a core only penalizes once.
+  const matchedCautions = terms.cautionTerms.filter((term) => text.includes(term));
+  const maximalCautions = matchedCautions.filter(
+    (term) => !matchedCautions.some((other) => other !== term && other.includes(term)),
+  );
+  for (const term of maximalCautions) {
+    score -= 10;
+    riskFlags.push(`Potential mismatch: ${term}`);
   }
 
   const emphasisAreas = detectEmphasisAreas(text);
@@ -142,8 +241,8 @@ function detectEmploymentType(text: string): CandidateJobScore["employmentType"]
   return "unknown";
 }
 
-function extractTechnologies(text: string) {
-  return Object.entries(TECH).filter(([, aliases]) => aliases.some((alias) => text.includes(alias))).map(([label]) => label);
+function detectTechnologies(text: string, detectTech: { label: string; aliases: string[] }[]) {
+  return detectTech.filter(({ aliases }) => aliases.some((alias) => text.includes(alias))).map(({ label }) => label);
 }
 
 function detectEmphasisAreas(text: string) {
@@ -159,4 +258,8 @@ function detectEmphasisAreas(text: string) {
 
 function normalize(value: string) {
   return value.toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function unique(items: string[]) {
+  return [...new Set(items.filter(Boolean))];
 }

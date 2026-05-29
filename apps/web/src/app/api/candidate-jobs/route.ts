@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { scoreCandidateJob } from "@/lib/candidate-jobs/scorer";
+import { getScoringProfile } from "@/lib/profile/get-profile";
 
 const DEFAULT_USER_EMAIL = process.env.SINGLE_USER_EMAIL || "nathancwatkins23@gmail.com";
 const DEFAULT_USER_NAME = "Nathan Watkins";
@@ -27,7 +28,8 @@ export async function GET() {
 export async function POST(request: Request) {
   const input = await request.json();
   const user = await getUser();
-  const score = scoreCandidateJob(input);
+  const profile = await getScoringProfile(user.id);
+  const score = scoreCandidateJob(input, profile);
   const existing = await findExistingCandidateJob(user.id, input);
 
   const data = {

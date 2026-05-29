@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { analyzeCandidateJobHeuristically } from "@/lib/candidate-jobs/analyze";
+import { getScoringProfile } from "@/lib/profile/get-profile";
 
 export async function POST(_request: Request, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
@@ -8,7 +9,8 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
 
   if (!candidateJob) return NextResponse.json({ error: "Candidate job not found" }, { status: 404 });
 
-  const analysis = analyzeCandidateJobHeuristically(candidateJob);
+  const profile = await getScoringProfile(candidateJob.userId);
+  const analysis = analyzeCandidateJobHeuristically(candidateJob, profile);
   const saved = await prisma.candidateJobAnalysis.create({
     data: {
       candidateJobId: candidateJob.id,
