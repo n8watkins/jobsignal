@@ -48,6 +48,7 @@ export const JobExtractionSchema = z.object({
   responsibilities: z.array(z.string()),
   benefits: z.array(z.string()),
   redFlags: z.array(z.string()),
+  emphasisAreas: z.array(z.string()).optional(),
   confidence: z.number().min(0).max(1),
 });
 
