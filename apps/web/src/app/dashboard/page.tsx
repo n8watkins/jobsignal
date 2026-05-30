@@ -15,6 +15,19 @@ const icons = [Briefcase, BarChart3, CheckCircle2, AlertTriangle];
 export default async function DashboardPage() {
   const user = await prisma.user.findUnique({ where: { email: DEFAULT_USER_EMAIL } });
 
+  const emailSignals = user
+    ? await prisma.emailEvent.findMany({
+        where: { userId: user.id, reviewStatus: "pending", archivedInGmail: false },
+        orderBy: { receivedAt: "desc" },
+        take: 20,
+        include: {
+          application: {
+            include: { jobPosting: { select: { companyName: true, roleTitle: true } } },
+          },
+        },
+      })
+    : [];
+
   const applications = user
     ? await prisma.application.findMany({
         where: { userId: user.id },
@@ -157,7 +170,7 @@ export default async function DashboardPage() {
       </section>
 
       <section className="mt-4 space-y-4">
-        <EmailSignalsSection />
+        <EmailSignalsSection events={emailSignals} />
 
         <Card className="overflow-hidden">
           <div className="border-b border-white/10 p-5">

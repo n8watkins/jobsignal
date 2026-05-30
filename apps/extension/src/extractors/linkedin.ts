@@ -44,7 +44,11 @@ function getDescription() {
       ".jobs-description__content",
       ".jobs-box__html-content",
       "#job-details",
-      "section.jobs-description"
+      "#job-details .jobs-box__html-content",
+      "section.jobs-description",
+      ".jobs-description",
+      "[data-test-job-description]",
+      ".jobs-details__main-content"
     ) ||
     clean(document.querySelector("main")?.textContent)?.slice(0, 16000) ||
     clean(document.body.innerText)?.slice(0, 16000)
@@ -90,16 +94,23 @@ export function extractLinkedInJob(): CapturedJob {
   const roleTitle =
     text(
       ".job-details-jobs-unified-top-card__job-title",
+      ".job-details-jobs-unified-top-card__job-title h1",
       ".jobs-unified-top-card__job-title",
+      ".jobs-unified-top-card__job-title h1",
+      "[data-test-job-title]",
       "h1.t-24",
+      "h1.t-20",
       "h1"
     ) || document.title.replace(/\s*\|\s*LinkedIn.*/i, "");
 
   const companyName =
     text(
       ".job-details-jobs-unified-top-card__company-name",
-      ".jobs-unified-top-card__company-name",
       ".job-details-jobs-unified-top-card__company-name a",
+      ".jobs-unified-top-card__company-name",
+      ".jobs-unified-top-card__company-name a",
+      "[data-test-employer-name]",
+      ".job-details-jobs-unified-top-card__primary-description a",
       "a[href*='/company/']"
     );
 

@@ -8,22 +8,26 @@ datasource db {
 }
 
 model User {
-  id                String             @id @default(cuid())
-  email             String             @unique
-  name              String?
-  avatarUrl         String?
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  resumeVersions    ResumeVersion[]
-  recruiterContacts RecruiterContact[]
-  jobPostings       JobPosting[]
-  applications      Application[]
-  applicationEvents ApplicationEvent[]
-  emailEvents       EmailEvent[]
-  jobAnalyses       JobAnalysis[]
-  companyResearch   CompanyResearch[]
-  candidateJobs     CandidateJob[]
-  jobSearchProfile  JobSearchProfile?
+  id                   String             @id @default(cuid())
+  email                String             @unique
+  name                 String?
+  avatarUrl            String?
+  googleEmail          String?
+  googleAccessToken    String?
+  googleRefreshToken   String?
+  googleTokenExpiry    DateTime?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  resumeVersions       ResumeVersion[]
+  recruiterContacts    RecruiterContact[]
+  jobPostings          JobPosting[]
+  applications         Application[]
+  applicationEvents    ApplicationEvent[]
+  emailEvents          EmailEvent[]
+  jobAnalyses          JobAnalysis[]
+  companyResearch      CompanyResearch[]
+  candidateJobs        CandidateJob[]
+  jobSearchProfile     JobSearchProfile?
 }
 
 model ResumeVersion {
@@ -206,9 +210,10 @@ model EmailEvent {
   reason              String?
   actionNeeded        Boolean             @default(false)
   suggestedNextAction String?
-  reviewStatus        String              @default("pending")
-  archivedInGmail     Boolean             @default(false)
-  createdAt           DateTime            @default(now())
+  reviewStatus            String              @default("pending")
+  correctedClassification String?
+  archivedInGmail         Boolean             @default(false)
+  createdAt               DateTime            @default(now())
 
   @@unique([userId, gmailMessageId])
   @@index([userId, classification])
