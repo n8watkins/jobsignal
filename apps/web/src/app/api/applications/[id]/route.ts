@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-const PATCHABLE = ["status", "nextAction", "actionNeeded", "interestLevel", "notes", "contactName", "contactEmail", "lastContactAt"];
+const PATCHABLE = ["status", "nextAction", "actionNeeded", "interestLevel", "notes", "interviewDate", "contactName", "contactEmail", "lastContactAt"];
 
 const STATUS_LABELS: Record<string, string> = {
   draft: "Draft",

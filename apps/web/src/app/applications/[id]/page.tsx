@@ -8,6 +8,8 @@ import { getCurrentUser } from "@/lib/auth/current-user";
 import { QueueCompanyResearchButton } from "./company-intelligence-actions";
 import { ApplicationStatusSelect } from "./application-actions";
 import { ConfirmRejectionBanner } from "./rejection-actions";
+import { NotesCard } from "./notes-card";
+import { InterviewSchedulerCard } from "./interview-scheduler";
 
 export const dynamic = "force-dynamic";
 
@@ -195,6 +197,16 @@ export default async function ApplicationDetailPage({ params }: { params: Promis
             ))}
           </div>
         </Card>
+      </div>
+
+      <div className="mt-4 grid gap-4 xl:grid-cols-2">
+        <NotesCard applicationId={app.id} initialNotes={app.notes} />
+        <InterviewSchedulerCard
+          applicationId={app.id}
+          initialDate={app.interviewDate}
+          techStack={techStack}
+          requiredSkills={requiredSkills}
+        />
       </div>
     </AppShell>
   );

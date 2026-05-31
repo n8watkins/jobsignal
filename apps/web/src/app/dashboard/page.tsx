@@ -5,6 +5,7 @@ import { Badge, Button, Card } from "@/components/ui";
 import { StatusBadge } from "@/components/status";
 import { prisma } from "@/lib/prisma";
 import { EmailSignalsSection } from "./email-signals-section";
+import { FollowUpSection } from "./followup-section";
 
 const DEFAULT_USER_EMAIL = process.env.SINGLE_USER_EMAIL || "nathancwatkins23@gmail.com";
 
@@ -68,6 +69,18 @@ export default async function DashboardPage() {
   const needsActionItems = applications
     .filter((a) => a.nextAction && a.nextAction !== "None" && a.nextAction !== "Wait")
     .slice(0, 4);
+
+  const ACTIVE_STATUSES = new Set(["applied", "application_confirmed", "recruiter_responded", "interview_requested", "assessment_requested", "interviewing", "offer_final_stage"]);
+  const FOLLOWUP_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  const followUpApps = applications
+    .filter((a) => {
+      if (!ACTIVE_STATUSES.has(a.status)) return false;
+      const ref = a.lastContactAt ?? a.appliedAt;
+      if (!ref) return false;
+      return now - new Date(ref).getTime() >= FOLLOWUP_THRESHOLD_MS;
+    })
+    .slice(0, 6);
 
   const currentDate = new Intl.DateTimeFormat("en", { weekday: "long", month: "long", day: "numeric" }).format(new Date());
 
@@ -170,6 +183,7 @@ export default async function DashboardPage() {
       </section>
 
       <section className="mt-4 space-y-4">
+        <FollowUpSection apps={followUpApps} />
         <EmailSignalsSection events={emailSignals} />
 
         <Card className="overflow-hidden">
